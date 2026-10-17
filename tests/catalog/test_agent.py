@@ -111,6 +111,7 @@ def test_bad_model_output_falls_back(cached, steps):
 
 def test_guardian_flag_falls_back_to_template(cached, monkeypatch):
     monkeypatch.setenv(guardian.ENV_PATH, "/models/g.gguf")
+    monkeypatch.setenv("GUARDIAN_MODE", "brief")
     monkeypatch.setattr(guardian, "_run_model", lambda prompt: (True, 0.88))
     be = Scripted({"tool": "get_event_facts", "args": {}}, {"answer": "The miss distance is 4.98 km."})
     r = agent.ask("how close?", 25544, be)
@@ -198,3 +199,18 @@ def test_old_chain_with_brief_typed_asks_still_verifies(cached):
     log_event("brief", {"type": "ask", "question": "old style"})
     agent.ask("what is going on?", 25544)
     assert verify_log() == (True, None)
+
+
+def test_template_answer_is_short_and_grounded_with_many_burn_rows(cached, facts):
+    """Regression: 'Why not the pair-only burn?' on real data was flagged ungrounded and dumped five rows."""
+    rows = [{"burn_id": f"+T_{dv:g}_{lead:g}P", "direction": "+T", "dv_mps": dv, "lead_periods": lead,
+             "miss_km_threat": 11.0 + 7.3 * i, "new_conjunctions": i % 3, "feasible": True,
+             "threat_pc_worst": 1e-7, "worst_pc": 3e-3 if i % 2 else 2e-6, "worst_other_norad": 40001,
+             "accepted": i % 2 == 0}
+            for i, (dv, lead) in enumerate([(0.01, 1.0), (0.02, 1.0), (0.05, 2.0), (0.1, 2.0), (0.2, 3.0), (0.5, 3.0)])]
+    facts["burn_table"] = rows
+    (cached / "out" / "facts_25544.json").write_text(json.dumps(facts), encoding="utf-8")
+    r = agent.ask("Why not the pair-only burn?", 25544)
+    assert r["grounded"] and [c["tool"] for c in r["tool_calls"]] == ["compare_pair_only"]
+    r = agent.ask("Which +T burns work?", 25544)
+    assert r["grounded"] and r["answer"].count("new close approaches") <= 3 and "first 3 shown" in r["answer"]

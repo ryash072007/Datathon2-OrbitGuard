@@ -91,6 +91,24 @@ def _run_model(prompt: str) -> tuple[bool, float | None]:
         raise ValueError(f"unexpected guardian answer {out!r}")
 
 
+def mode() -> str:
+    """GUARDIAN_MODE: off (default: measured 0/40 detections, see guard_eval) or brief (whole brief vs facts)."""
+    m = os.environ.get("GUARDIAN_MODE", "off").strip().lower()
+    if m not in ("off", "brief"):
+        raise ValueError(f"GUARDIAN_MODE must be off or brief, not {m!r}")
+    return m
+
+
+def run_configured(context: str, response: str) -> dict:
+    """What the brief and Ask paths call: honours GUARDIAN_MODE (off | brief)."""
+    if not model_path():
+        return {"status": "not configured"}
+    m = mode()
+    if m == "off":
+        return {"status": "off", "mode": "off"}
+    return check_groundedness(context, response)
+
+
 def check_groundedness(context: str, response: str) -> dict:
     """Judge whether ``response`` is supported by ``context``. Never raises."""
     path = model_path()

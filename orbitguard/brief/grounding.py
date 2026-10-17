@@ -14,6 +14,8 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]
 LIST_MARK_RE = re.compile(r"^\s*(?:[-*]\s+)?\d+[.)]\s+", re.M)
 UNIT_SCALES = (1.0, 100.0, 1e3, 1e-3, 1e6, 1e-6, 60.0, 1.0 / 60.0)
 FREE_INTS = {0, 1, 2, 3}
+# The Pc sensitivity sweep multipliers ("0.5x to 2x the assumed error") are method constants, not event facts.
+SWEEP_RE = re.compile(r"(?<![\w.])(?:0\.5|1|2)\s?x(?![a-zA-Z])")
 
 
 def _walk(obj, out: list[float]) -> None:
@@ -74,6 +76,10 @@ def _grounded(token: str, facts_abs: list[float]) -> bool:
     for f in facts_abs:
         for s in UNIT_SCALES:
             g = f * s
+            # A unit-scaled match only means something if the written precision resolves the value (within 5%):
+            # otherwise "0.1" or "0.0" would be "grounded" by a scaled copy of almost any fact.
+            if s != 1.0 and tol > 0.05 * abs(g):
+                continue
             if abs(g - val) <= tol * (1 + 1e-9) + 1e-12 * max(abs(g), 1.0):
                 return True
     return False
@@ -82,7 +88,7 @@ def _grounded(token: str, facts_abs: list[float]) -> bool:
 def check_grounding(text: str, facts: dict) -> list[str]:
     """Return the numbers in ``text`` that cannot be traced to ``facts`` (empty list = grounded)."""
     facts_abs = fact_numbers(facts)
-    body = DATE_RE.sub(" ", LIST_MARK_RE.sub("", text.replace("−", "-")))
+    body = SWEEP_RE.sub(" ", DATE_RE.sub(" ", LIST_MARK_RE.sub("", text.replace("−", "-"))))
     bad: list[str] = []
     for m in NUM_RE.finditer(body):
         tok = m.group(0)

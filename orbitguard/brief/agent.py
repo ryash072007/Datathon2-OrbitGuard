@@ -21,6 +21,7 @@ import re
 import time
 from typing import Any, Callable
 
+from .claims import check_claims
 from .grounding import check_grounding
 
 MAX_TOOL_CALLS = 3
@@ -149,6 +150,7 @@ def lookup_burn(ctx: Context, direction: str | None = None, dv_mps: float | None
     hit.sort(key=lambda r: (not r.get("accepted"), r.get("dv_mps", 0), -(r.get("lead_periods") or 0)))
     out = {"requested": {"direction": direction, "dv_mps": dv_mps, "lead_orbits": lead_orbits},
            "matches": [_row_view(r, burns) for r in hit[:5]], "n_matches": len(hit),
+           "n_accepted_matches": sum(bool(r.get("accepted")) for r in hit),
            "n_cached_candidates": len(rows), "n_screened": burns.get("n_screened"),
            "pc_threshold": burns.get("pc_threshold"), "target_km": burns.get("target_km")}
     if not hit:
@@ -264,9 +266,10 @@ def render_tool(tool: str, res: dict) -> str:
     if tool == "lookup_burn":
         if not res["matches"]:
             return "No screened candidate matches that burn: it is " + res["note"] + "."
-        head = f"{res['n_matches']} matching screened candidate(s)" + (
-            f", showing {len(res['matches'])}" if res["n_matches"] > len(res["matches"]) else "") + ". "
-        return head + " ".join(_fmt_row(m) for m in res["matches"])
+        shown = res["matches"][:3]
+        head = (f"{res['n_matches']} screened candidate(s) match; {res['n_accepted_matches']} pass every check"
+                + (" (first 3 shown)" if res["n_matches"] > len(shown) else "") + ". ")
+        return head + " ".join(_fmt_row(m) for m in shown)
     if tool == "compare_pair_only":
         pair, og = res["pair_only"], res["orbitguard"]
         s = "A pair-only check finds no acceptable burn. " if not pair else (
@@ -292,7 +295,7 @@ def render_tool(tool: str, res: dict) -> str:
         return s
     ents = res["entries"]
     kinds = ", ".join(f"{e['kind']} #{e['seq']}" for e in ents)
-    return f"The audit chain is {'intact' if res['intact'] else 'BROKEN'}. Last {len(ents)} entries: {kinds or 'none'}."
+    return f"The audit chain is {'intact' if res['intact'] else 'BROKEN'}. Most recent entries: {kinds or 'none'}."
 
 
 def render_answer(calls: list[dict]) -> str:
@@ -317,6 +320,8 @@ def route(question: str, ctx: Context) -> list[tuple[str, dict]]:
     if re.search(r"later|earlier|sooner|orbit|radial|along|track|prograde|retrograde|cross|normal|burn|m/s|delta|"
                  r"lead|[+-]\s?[rtn]\b", q):
         plan.append(("lookup_burn", _burn_args(q, ctx)))
+    if len(plan) > 1 and plan[-1][0] == "lookup_burn" and not plan[-1][1]:
+        plan.pop()  # an unfiltered burn listing would only add noise to a more specific answer
     if not plan:
         plan.append(("get_event_facts", {}))
     return plan[:MAX_TOOL_CALLS]
@@ -479,11 +484,14 @@ def ask(question: str, norad: int | None = None, backend=None) -> dict:
             used = getattr(be, "name", "llm")
             union = {"tools": [c["result"] for c in calls]}
             bad = check_grounding(answer, union)
+            claims = check_claims(answer, ctx.facts, action=False) if not bad else []
             if bad:
                 reason, answer = f"ungrounded numbers {bad}", None
+            elif claims:
+                reason, answer = f"answer contradicts the facts: {claims}", None
             else:
-                from .guardian import check_groundedness
-                guardian = check_groundedness(json.dumps(union, separators=(",", ":"), default=str), answer)
+                from .guardian import run_configured
+                guardian = run_configured(json.dumps(union, separators=(",", ":"), default=str), answer)
                 if guardian.get("flagged"):
                     reason, answer = f"Granite Guardian flagged the answer as not grounded (p_risk={guardian.get('p_risk')})", None
         except Exception as exc:  # noqa: BLE001 - any LLM failure degrades to the deterministic answer, recorded

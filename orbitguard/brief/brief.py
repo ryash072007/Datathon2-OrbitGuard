@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .backends import Backend, build_prompt, get_backend
+from .claims import check_claims
 from .grounding import check_grounding
 from .template import render_template
 
@@ -44,8 +45,8 @@ def _guardian(text: str, facts: dict) -> dict:
     import json
 
     from .backends import llm_view
-    from .guardian import check_groundedness
-    return check_groundedness(json.dumps(llm_view(facts), separators=(",", ":"), default=str), text)
+    from .guardian import run_configured
+    return run_configured(json.dumps(llm_view(facts), separators=(",", ":"), default=str), text)
 
 
 def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
@@ -58,7 +59,12 @@ def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
         if name != "template":
             text = be.generate(build_prompt(facts), facts)
             bad = check_grounding(text, facts)
-            if not bad:
+            claims = check_claims(text, facts) if not bad else []
+            if bad:
+                issues.append(f"fallback: {name} output had ungrounded numbers {bad}")
+            elif claims:
+                issues.append(f"fallback: {name} output contradicts the facts: {claims}")
+            else:
                 guard = _guardian(text, facts)
                 if not guard.get("flagged"):
                     return Brief(text, name, True, [], guard)
@@ -67,7 +73,6 @@ def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
                 text = render_template(facts)
                 bad = check_grounding(text, facts)
                 return Brief(text, "template", not bad, issues + ([f"ungrounded numbers {bad}"] if bad else []), guard)
-            issues.append(f"fallback: {name} output had ungrounded numbers {bad}")
         else:
             text = be.generate("", facts)
             bad = check_grounding(text, facts)
