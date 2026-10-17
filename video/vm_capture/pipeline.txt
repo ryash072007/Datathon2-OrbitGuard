@@ -1,0 +1,11 @@
+=== get_data: ok in 0.0s
+Manoeuvre needed at target 10 km: True. Best burn: +T_0.5_3P (dv 0.5 m/s, miss 22.26 km, new conj 0). Along-track won: True. Feasible burns: 4/144.
+=== screen_iss: ok in 68.4s
+=== consequence_survey20: ok in 227.6s
+=== network_24h: ok in 100.6s
+=== brief_facts: ok in 79.2s
+  total                                  475.7s
+Manoeuvre needed at target 10 km: True. Best burn: +T_0.5_3P (dv 0.5 m/s, miss 22.26 km, new conj 0). Along-track won: True. Feasible burns: 4/144.
+benchmark workers=  1 wall=  89.29s speedup= 1.00x
+benchmark workers=  2 wall=  43.13s speedup= 2.07x
+benchmark workers=  3 wall=  43.31s speedup= 2.06x

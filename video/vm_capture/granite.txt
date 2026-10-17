@@ -1,0 +1,2 @@
+$ python3 /tmp/granite_line.py   # reads data/out/brief_granite_vm.json
+granite-3.3-2b-instruct-q8_0-be.gguf | backend: llamacpp | grounded: True | issues: []
