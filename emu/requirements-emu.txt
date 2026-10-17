@@ -1,3 +1,0 @@
-sgp4
-requests
-flask

@@ -1,0 +1,11 @@
+# Pinned to the LinuxONE Community Cloud Jupyter ML image (registry.linuxone.cloud.marist.edu/l1cc/jupyterlab-image-s390x, packages.txt)
+numpy==2.0.2
+pandas==3.0.6
+scipy==1.13.1
+scikit-learn==1.9.0
+matplotlib==3.11.2
+# not in the VM image; pip install on the VM
+sgp4
+requests
+flask
+pytest
