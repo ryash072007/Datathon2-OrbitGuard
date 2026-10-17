@@ -1,0 +1,32 @@
+$ uname -m && grep -E "^Type" /proc/sysinfo
+s390x
+Type:                 9175
+Type 1 Percentage:    0
+Type 2 Percentage:    0
+Type 3 Percentage:    0
+Type 4 Percentage:    0
+Type 5 Percentage:    0
+
+$ lscpu | head -12
+Architecture:                            s390x
+CPU op-mode(s):                          32-bit, 64-bit
+Byte Order:                              Big Endian
+CPU(s):                                  3
+On-line CPU(s) list:                     0-2
+Vendor ID:                               IBM/S390
+Model name:                              -
+Machine type:                            9175
+Thread(s) per core:                      1
+Core(s) per socket:                      1
+Socket(s) per book:                      1
+Book(s) per drawer:                      1
+
+$ grep -o -m1 nnpa /proc/cpuinfo
+nnpa
+
+$ python3 -c "import sys, platform; print(platform.machine(), sys.byteorder)"
+s390x big
+
+$ docker images | grep -E "datathon2|jupyterlab"
+datathon2:latest  9.89GB
+registry.linuxone.cloud.marist.edu/l1cc/jupyterlab-image-s390x:latest  9.85GB

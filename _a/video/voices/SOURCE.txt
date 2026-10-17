@@ -1,0 +1,14 @@
+ljspeech_ref.wav - LJ Speech dataset (Keith Ito), utterance LJ001-0001, single female reader (LibriVox).
+Licence: public domain. https://keithito.com/LJ-Speech-Dataset/
+Fetched via HF mirror https://huggingface.co/datasets/MikhailT/lj-speech (row 0, 9.7 s, 22.05 kHz).
+Credit in README: LJ Speech dataset, Keith Ito, public domain.
+
+librivox_klett_ref.wav - LibriVox "Summer" by Edith Wharton, read by Elizabeth Klett, chapter 1 (~2:30-2:38).
+Public domain (LibriVox recordings are public-domain dedicated; archive.org licenseurl: creativecommons.org/publicdomain/mark/1.0/).
+https://archive.org/details/summer_etk_librivox  (file summer_01_wharton_64kb.mp3)
+
+librivox_savage_ref.wav - LibriVox "Anne's House of Dreams" by L. M. Montgomery, read by Karen Savage, chapter 1 (~2:52-3:01).
+Public domain, same LibriVox dedication.
+https://archive.org/details/anneshouseofdreams_1111_librivox  (file anneshouseofdreams_01_montgomery_64kb.mp3)
+
+Model licences: Chatterbox MIT; Kokoro-82M Apache-2.0; Orpheus 3B (canopylabs/orpheus-3b-0.1-ft, weights via ungated mirror unsloth/orpheus-3b-0.1-ft) Apache-2.0 per model card, built on Llama-3.2-3B so Llama 3.2 Community Licence terms also apply (fine for a non-commercial demo; attribution "Built with Llama"). SNAC codec MIT.

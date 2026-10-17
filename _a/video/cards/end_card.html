@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 200px}
+.tag{font-size:64px;font-weight:600;letter-spacing:-.025em;line-height:1.22;max-width:1500px}
+.tag div{margin:4px 0}
+.tag .a{color:var(--text)} .tag .b{color:var(--cyan)} .tag .c{color:var(--ok)}
+.url{margin-top:70px;font:500 38px var(--mono);color:var(--cyan);padding:16px 34px;border:1px solid var(--cyan-d);border-radius:14px;background:rgba(14,90,107,.18)}
+.team{margin-top:34px;font-size:27px;color:var(--mute);letter-spacing:.01em}
+.team i{font-style:normal;color:var(--dim);margin:0 .6em}
+</style>
+<canvas id="bg"></canvas><div class="vig"></div>
+<div class="wrap">
+ <div class="tag">
+  <div class="a" id="t1">Probability tells you how likely.</div>
+  <div class="b" id="t2">We tell you what it would cost</div>
+  <div class="c" id="t3">— and which dodge doesn't start a cascade.</div>
+ </div>
+ <div class="url" id="url">https://github.com/ryash072007/IBM-Datathon</div>
+ <div class="team" id="team">Team Datathon2<i>·</i>IBM Z Datathon 2026<i>·</i>Built on IBM LinuxONE</div>
+</div>
+<script src="common.js"></script>
+<script>
+const bg=makeBg(document.getElementById('bg'),{seed:23,dim:.8});
+const $=id=>document.getElementById(id);
+function put(el,p,dy=24,blur=10){el.style.opacity=p;el.style.transform=`translateY(${(1-p)*dy}px)`;el.style.filter=`blur(${(1-p)*blur}px)`}
+// DUR (= narration s10 + 2 s) is passed by build_cards.py as ?dur=. Tagline lines track the voice.
+const q=new URLSearchParams(location.search),DUR=parseFloat(q.get('dur')||'10');
+const nar=DUR-2;
+const T1=.5,T2=.5+nar*.30,T3=.5+nar*.52,TU=.5+nar+.3,TT=TU+.6;
+window.render=function(t){
+  bg(t);
+  put($('t1'),easeOut(seg(t,T1,.8)));put($('t2'),easeOut(seg(t,T2,.8)));put($('t3'),easeOut(seg(t,T3,.8)));
+  put($('url'),easeOut(seg(t,TU,.8)),20);put($('team'),easeOut(seg(t,TT,.8)),16);
+  document.body.style.opacity=1-easeIO(seg(t,DUR-.6,.6));
+};
+window.__ready=true;
+</script>

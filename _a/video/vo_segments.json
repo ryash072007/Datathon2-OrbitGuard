@@ -1,0 +1,12 @@
+[
+  {"id": "s01", "shot": "hero_globe", "text": "There are more than fifteen thousand active satellites in low Earth orbit right now. And they're sharing it with a lot of junk."},
+  {"id": "s02", "shot": "hero_globe_zoom", "text": "Operators get close-approach warnings every day. Each one is a call. Move, and burn fuel. Or wait, and hope."},
+  {"id": "s03", "shot": "replay", "text": "We used thirteen thousand real warning sequences from the European Space Agency. Here's the catch: in ESA's own competition, only twelve of ninety-seven teams beat the simplest rule. Trust the latest warning."},
+  {"id": "s04", "shot": "decision", "text": "So we built on that rule instead of fighting it. Act, wait, or monitor, with the reasons spelled out. And on events it has never seen, it beats the baseline."},
+  {"id": "s05", "shot": "dodge", "text": "When a dodge is needed, we test a hundred and forty-four burns against nearly seven thousand objects. Two of them give the Space Station twenty-two kilometres of room. But one of those steers it into a new close call. So we pick the other one."},
+  {"id": "s06", "shot": "impact_globe", "text": "And if a collision actually happens? We break it up with NASA's debris model. Eleven thousand fragments. Nearly nine thousand satellites facing new close passes."},
+  {"id": "s07", "shot": "slope_chart", "text": "Same probability doesn't mean same danger. Rank by harm instead, and more than half the list moves."},
+  {"id": "s08", "shot": "spreaders_brief", "text": "We flag the objects that spread the most risk. Then IBM Granite writes the brief. If it makes up a single number, we throw it out."},
+  {"id": "s09", "shot": "linuxone_terminal", "text": "It all runs on IBM LinuxONE. A z seventeen, big-endian, in a container on IBM's own image. Its built-in AI accelerator scores conjunctions up to two point seven times faster than the CPU. Granite runs right on the machine, so orbit data never leaves it. And every recommendation is logged, so any later edit shows up."},
+  {"id": "s10", "shot": "end_card", "text": "Probability tells you how likely. We tell you what it would cost, and which dodge doesn't start a cascade."}
+]

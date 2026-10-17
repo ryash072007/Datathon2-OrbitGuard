@@ -1,0 +1,12 @@
+$ grep -o -m1 nnpa /proc/cpuinfo
+nnpa
+
+$ python3 -m src.nnpa.report
+Keras MLP scoring conjunctions: CPU vs NNPA (nnpa_bench_yash-ibm.json)
+plugin: ibm-zdnn-plugin 2.3.0 | machine type 9175
+      rows   CPU rows/s  NNPA rows/s  speed-up
+     1,000       27,896       29,601     1.06x
+    10,000      166,259      271,521     1.63x
+   100,000      374,497      798,192     2.13x
+ 1,000,000      413,486    1,102,943     2.67x
+max |CPU - NNPA| prediction diff: 0.0015

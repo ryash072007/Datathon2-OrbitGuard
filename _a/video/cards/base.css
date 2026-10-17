@@ -1,0 +1,9 @@
+:root{--bg:#050912;--bg2:#080e1b;--panel:#0b1324;--panel2:#101a30;--line:#1b2944;--line2:#27385c;
+--text:#e8eefb;--mute:#97a8c6;--dim:#6b7d9e;--cyan:#38d6f5;--cyan-d:#0e5a6b;--act:#ff5468;--wait:#ffb43c;--ok:#3ddc97;
+--ui:'Geist','Segoe UI',system-ui,Roboto,Arial,sans-serif;--mono:'Geist Mono','Cascadia Mono',Consolas,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+canvas#bg{position:absolute;inset:0}
+.vig{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,rgba(5,9,18,0) 35%,rgba(5,9,18,.85) 100%);pointer-events:none}
+.mono{font-family:var(--mono)}
+.cy{color:var(--cyan)}

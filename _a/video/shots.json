@@ -1,0 +1,98 @@
+{
+  "_doc": "dur defaults to words/2.5 of the narration segment(s) with this shot key. Actions run in order; the recorder pads the end with the last frame / waits to fill the duration. Action types: goto{url|hash}, scroll{to,ms,offset}, wait{s}, click{sel,nth}, hover{sel,nth,s}, drag{sel,dx,dy,ms}, wheel{sel,dy,steps,ms}, slider{sel,values,hold_s,ms}, js{code}.",
+  "base_url": "http://127.0.0.1:8080/",
+  "shots": {
+    "hero_globe": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#hero-canvas canvas"},
+        {"type": "wait", "s": 1.5},
+        {"type": "drag", "sel": "#hero-canvas canvas", "dx": 260, "dy": 20, "ms": 4500},
+        {"type": "wait", "s": 1.0},
+        {"type": "drag", "sel": "#hero-canvas canvas", "dx": -140, "dy": -15, "ms": 3500}
+      ]
+    },
+    "hero_globe_zoom": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#hero-canvas canvas"},
+        {"type": "wait", "s": 1.2},
+        {"type": "wheel", "sel": "#hero-canvas canvas", "dy": -100, "steps": 6, "ms": 5000},
+        {"type": "drag", "sel": "#hero-canvas canvas", "dx": 200, "dy": 30, "ms": 4500},
+        {"type": "wait", "s": 1.0},
+        {"type": "wheel", "sel": "#hero-canvas canvas", "dy": 100, "steps": 4, "ms": 3500}
+      ]
+    },
+    "replay": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#rp-chart svg"},
+        {"type": "scroll", "to": "#warning", "ms": 0, "offset": 70},
+        {"type": "wait", "s": 1.5},
+        {"type": "hover", "sel": "#rp-play", "s": 0.8},
+        {"type": "click", "sel": "#rp-play"},
+        {"type": "wait", "s": 40}
+      ]
+    },
+    "decision": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#d-meters"},
+        {"type": "scroll", "to": "#warning", "ms": 0, "offset": 70},
+        {"type": "wait", "s": 0.3},
+        {"type": "scroll", "to": "#decision", "ms": 2200, "offset": 70},
+        {"type": "wait", "s": 3.0},
+        {"type": "hover", "sel": ".reasons li", "nth": 0, "s": 2.5},
+        {"type": "hover", "sel": ".reasons li", "nth": 1, "s": 2.5},
+        {"type": "hover", "sel": ".d-meters, #d-meters", "s": 3}
+      ]
+    },
+    "dodge": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#burn-table"},
+        {"type": "scroll", "to": "#decision", "ms": 0, "offset": 70},
+        {"type": "scroll", "to": "#dodge", "ms": 2400, "offset": 70},
+        {"type": "wait", "s": 2.5},
+        {"type": "click", "sel": "#burn-table tbody tr:not(.warn).ok", "nth": 0},
+        {"type": "wait", "s": 4.0},
+        {"type": "click", "sel": "#burn-table tbody tr.warn", "nth": 0},
+        {"type": "wait", "s": 5.0},
+        {"type": "click", "sel": "#burn-table tbody tr:not(.warn).ok", "nth": 0},
+        {"type": "wait", "s": 4.0}
+      ]
+    },
+    "impact_globe": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#globe-canvas canvas"},
+        {"type": "scroll", "to": "#dodge", "ms": 0, "offset": 70},
+        {"type": "scroll", "to": "#impact", "ms": 2400, "offset": 70},
+        {"type": "wait", "s": 2.0},
+        {"type": "click", "sel": "#sc-play"},
+        {"type": "slider", "sel": "#sc-range", "values": [0, 1, 2, 3], "hold_s": 3.5, "ms": 500},
+        {"type": "drag", "sel": "#globe-canvas canvas", "dx": 220, "dy": 20, "ms": 4000},
+        {"type": "wait", "s": 1.5}
+      ]
+    },
+    "slope_chart": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#slope svg"},
+        {"type": "scroll", "to": "#impact", "ms": 0, "offset": 70},
+        {"type": "scroll", "to": "#impact .two", "ms": 2400, "offset": 90},
+        {"type": "wait", "s": 2.0},
+        {"type": "hover", "sel": "#slope .sl", "nth": 0, "s": 1.8},
+        {"type": "hover", "sel": "#slope .sl", "nth": 3, "s": 1.8},
+        {"type": "hover", "sel": "#slope .sl", "nth": 7, "s": 1.8},
+        {"type": "hover", "sel": "#slope .sl", "nth": 12, "s": 1.8},
+        {"type": "hover", "sel": "#slope .sl", "nth": 16, "s": 1.8}
+      ]
+    },
+    "spreaders_brief": {
+      "actions": [
+        {"type": "goto", "url": "/", "ready": "#net svg, #net canvas"},
+        {"type": "scroll", "to": "#impact", "ms": 0, "offset": 70},
+        {"type": "scroll", "to": "#spreaders", "ms": 2400, "offset": 70},
+        {"type": "wait", "s": 2.5},
+        {"type": "hover", "sel": "#net-table tbody tr", "nth": 0, "s": 1.5},
+        {"type": "hover", "sel": "#net-table tbody tr", "nth": 2, "s": 1.5},
+        {"type": "scroll", "to": "#brief", "ms": 2800, "offset": 70},
+        {"type": "wait", "s": 4}
+      ]
+    }
+  }
+}
