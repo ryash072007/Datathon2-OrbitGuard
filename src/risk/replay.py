@@ -33,7 +33,8 @@ def replay_cdms(cdms: pd.DataFrame, true_final: float | None, art: dict | None =
     u = cdms[cdms["time_to_tca"] >= MIN_TTCA_DAYS].sort_values("time_to_tca", ascending=False, kind="stable")
     if u.empty:
         raise ValueError("event has no CDMs with time_to_tca >= 2 days")
-    art = art or load_artifact()
+    if art is None:
+        art = load_artifact()
     steps: list[dict] = []
     for i in range(1, len(u) + 1):
         d: Decision = decide(u.iloc[:i], art)
