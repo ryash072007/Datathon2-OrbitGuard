@@ -21,7 +21,8 @@ RE_KM = 6378.137
 BASE_URL = "https://celestrak.org/NORAD/elements/gp.php"
 DEBRIS_GROUPS = ("cosmos-1408-debris", "fengyun-1c-debris", "iridium-33-debris", "cosmos-2251-debris")
 GROUPS = ("active",) + DEBRIS_GROUPS
-MAX_AGE_H = 6.0
+# TLE_MAX_AGE_H=1e9 freezes the cached snapshot (reproducible demo across machines).
+MAX_AGE_H = float(os.environ.get("TLE_MAX_AGE_H", "6.0"))
 USER_AGENT = "IBM-Z-Datathon-2026-collision-screener/0.1 (educational hackathon project)"
 SHELL_MARGIN_KM = 25.0
 
