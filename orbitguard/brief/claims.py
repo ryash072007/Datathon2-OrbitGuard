@@ -40,6 +40,20 @@ OVERCONFIDENT_RE = re.compile(
 NORAD_RE = re.compile(r"NORAD\s+(\d+)", re.I)
 
 
+def _aliases(name: str) -> set[str]:
+    """Lower-case forms an object may be written as: full name, the part before a parenthesis, the parenthetical."""
+    full = name.strip().lower()
+    out = {full}
+    m = re.match(r"^(.*?)\s*\((.*?)\)\s*$", full)
+    if m:
+        out |= {m.group(1).strip(), m.group(2).strip()}
+    out |= {_EXPANSIONS[a] for a in list(out) if a in _EXPANSIONS}
+    return {a for a in out if len(a) >= 3}
+
+
+_EXPANSIONS = {"iss": "international space station", "hst": "hubble space telescope"}
+
+
 def _sentences(text: str) -> list[str]:
     parts: list[str] = []
     for line in text.split("\n"):
@@ -124,8 +138,18 @@ def check_claims(text: str, facts: dict, *, action: bool = True) -> list[str]:
         n = int(m.group(1))
         if n not in known:
             issues.append(f"object: NORAD {n} is not in the facts")
-        elif n in owners and owners[n] and owners[n] not in text[max(0, m.start() - len(owners[n]) - 6):m.start()]:
-            issues.append(f"object: NORAD {n} belongs to {owners[n]}, which is not the name written before it")
+        elif n in owners and owners[n]:
+            # Flag a swapped attribution: the nearest object name written before "NORAD n" belongs to the other
+            # object. Short forms count ("ISS" for "ISS (ZARYA)"), so paraphrase is not an error.
+            before = text[max(0, m.start() - 80):m.start()].lower()
+            def last_pos(name: str) -> int:
+                return max((before.rfind(a) for a in _aliases(name)), default=-1)
+            mine = last_pos(owners[n])
+            others = [last_pos(nm) for k, nm in owners.items() if k != n and nm]
+            if mine < 0:
+                issues.append(f"object: NORAD {n} belongs to {owners[n]}, which is not the name written before it")
+            elif others and max(others) > mine:
+                issues.append(f"object: NORAD {n} belongs to {owners[n]}, but the name written before it is another object's")
 
     for m in OVERCONFIDENT_RE.finditer(text):
         issues.append(f"overconfident: '{m.group(0)}'")

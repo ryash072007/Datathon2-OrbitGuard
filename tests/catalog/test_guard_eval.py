@@ -80,3 +80,21 @@ def test_cli_writes_json(tmp_path, monkeypatch):
     assert guard_eval.main(["--n", "5", "--seed", "3", "--heldout", "0", "--real", "0", "--out", str(out)]) == 0
     d = json.loads(out.read_text())
     assert d["n_per_class"] == 5 and d["platform"]["machine"] and "Q4_K_M" in " ".join(d["notes"])
+
+
+def test_claims_accept_short_object_name_but_flag_swaps():
+    from orbitguard.brief.claims import check_claims
+    facts = {"event": {"primary": {"norad": 25544, "name": "ISS (ZARYA)"},
+                       "threat": {"norad": 64962, "name": "ENSHI XIDA SHANQUAN"}}}
+    ok = "The ISS (NORAD 25544) passes ENSHI XIDA SHANQUAN (NORAD 64962)."
+    swapped = "ENSHI XIDA SHANQUAN (NORAD 25544) passes the ISS (NORAD 64962)."
+    assert not [i for i in check_claims(ok, facts) if i.startswith("object")]
+    assert [i for i in check_claims(swapped, facts) if i.startswith("object")]
+
+
+def test_claims_accept_spelled_out_station_name():
+    from orbitguard.brief.claims import check_claims
+    facts = {"event": {"primary": {"norad": 25544, "name": "ISS (ZARYA)"},
+                       "threat": {"norad": 64962, "name": "ENSHI XIDA SHANQUAN"}}}
+    text = "The International Space Station (NORAD 25544) will pass ENSHI XIDA SHANQUAN (NORAD 64962)."
+    assert not [i for i in check_claims(text, facts) if i.startswith("object")]
