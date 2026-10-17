@@ -17,3 +17,6 @@ venv/
 .ipynb_checkpoints/
 .pytest_cache/
 
+
+# organiser documents (kept locally, not published)
+*.pdf
