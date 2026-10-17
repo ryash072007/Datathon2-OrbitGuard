@@ -54,7 +54,7 @@ def preprocess(text: str, extra: dict[str, str] | None = None) -> str:
     table = {**PRONUNCIATIONS, **(extra or {})}
     for key in sorted(table, key=len, reverse=True):
         text = re.sub(rf"(?<![\w.]){re.escape(key)}(?![\w])", table[key], text)
-    return text
+    return re.sub(r"\.\.(?!\.)", ".", text)  # "C.P.U." + "." -> single full stop
 
 
 def seed_everything(seed: int) -> None:
@@ -67,7 +67,8 @@ def seed_everything(seed: int) -> None:
 
 
 def split_sentences(text: str) -> list[str]:
-    return [t for t in re.split(r"(?<=[.!?])\s+", text.strip()) if t]
+    # don't split after letter-dot abbreviations such as "I.B.M." or "A.I." (single capital + dot)
+    return [t for t in re.split(r"(?<=[.!?])(?<!\b[A-Z]\.)\s+", text.strip()) if t]
 
 
 def trim_silence(x: np.ndarray, sr: int = SR, thresh_db: float = -45.0, keep_s: float = KEEP_S) -> np.ndarray:
