@@ -32,9 +32,9 @@ build before quoting them. See [JUDGING_GUIDE.md](JUDGING_GUIDE.md) and [ACCURAC
   - terminal: `uname -m` shows `s390x`, `systemctl status orbitguard`, `cat artifacts/pipeline/status.log`
   - the dashboard header's "IBM LinuxONE s390x" indicator and the "IBM LinuxONE platform use" card
   - `orbitguard zai-bench` output (CPU vs zDNN table, with the backend line)
-  - `orbitguard guard-eval` output (numeric guard vs Guardian catch rates)
+  - `orbitguard guard-eval` output (numeric guard and claim checker catch rates; Guardian row if run)
   - `cpacf_crypto.txt` (msa flags and hashlib throughput)
-  - the Ask OrbitGuard panel after a question (tool chips, "Numbers grounded", Guardian badge)
+  - the Ask OrbitGuard panel after a question (tool chips, "Numbers grounded")
   - the Validation tab's "Where the AI helps, and where it doesn't" cards (Forecasting, Workload, Telum, Burn search, Guard evaluation)
   - the Encounters decision card with the Snap ML second-opinion line
 - [ ] Record the 3-minute-or-less video following [DEMO_SCRIPT.md](DEMO_SCRIPT.md). Fill every `{placeholder}` from the VM artefacts first, recount the narration, and check the final duration before uploading.

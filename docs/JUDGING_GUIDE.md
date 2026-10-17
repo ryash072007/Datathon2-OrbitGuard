@@ -28,8 +28,9 @@ section separates what was measured on LinuxONE from what was measured on a deve
   `orbitguard/catalog/screen.py` (`recommend`), `orbitguard/physics/risk.py`.
 - **AI proposes, physics verifies.** Constrained Bayesian optimisation searches between the grid's burns, and every
   pick is re-checked by the full rule. Proof: `orbitguard/optimise/`; `orbitguard optimise-burns synthetic --count 50 --budget 37 --seed 0`.
-- **An AI checks the AI.** Granite Guardian tests whether the brief and the Ask answers are supported by the facts, on
-  top of a numeric guard. Proof: `orbitguard/brief/guard_eval.py`; `orbitguard guard-eval --n 40 --seed 0`.
+- **Measured guards on the AI's writing.** A numeric guard and a claim checker check every brief and Ask answer.
+  We also tested Granite Guardian, which caught 0 of 40 subtle errors, so it ships off. The 8-of-10 held-out
+  figure is the honest one. Proof: `orbitguard/brief/guard_eval.py`; `orbitguard guard-eval --n 40 --seed 0`.
 - **Consequence-aware ranking.** Pc rank versus expected-harm rank (Spearman 0.78 on 20 events, 11 move 3 or more places).
   Proof: `orbitguard consequence`, `orbitguard network`; README "Results".
 
@@ -42,7 +43,7 @@ section separates what was measured on LinuxONE from what was measured on a deve
 - **Snap ML on zDNN.** Boosted trees scored with `tree_format="zdnn_tensors"`, CPU versus accelerator. Proof:
   `orbitguard zai-fit && orbitguard zai-eval && orbitguard zai-bench`, `artifacts/zai/snapml_bench_*.json`. The result
   names its backend; a CPU-only run says CPU.
-- **Granite 3.3 2B and Granite Guardian on the box.** Big-endian GGUFs in llama.cpp, no external AI API. Proof:
+- **Granite 3.3 2B on the box (Guardian converted the same way, evaluated).** Big-endian GGUFs in llama.cpp, no external AI API. Proof:
   `docs/vm_capture/granite.txt`, `docs/porting.md`, `scripts/convert_granite_bigendian.sh`.
 - **Porting done properly.** sgp4 C extension built from source (pure Python was about 70x slower), explicit `<f8`
   byte order, spawn-safe multiprocessing, models retrained on the VM instead of copied. Proof: `scripts/bootstrap-linuxone.sh`,
