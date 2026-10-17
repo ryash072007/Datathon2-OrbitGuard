@@ -20,6 +20,21 @@
  button:disabled{background:#9ca3af} pre.brief{white-space:pre-wrap;font-family:inherit;font-size:14px;margin:0}
  footer{padding:10px 20px;font-size:12px;color:#374151;text-align:center}
  #busy{display:none;background:#fef3c7;padding:6px 20px;font-size:13px}
+
+ section.dark{background:#0b1220;color:#e2e8f0} .muted2{color:#94a3b8;font-size:13px}
+ #globe-wrap{position:relative;height:460px;background:radial-gradient(circle at 50% 40%,#0f1b33,#02050c);border-radius:6px;overflow:hidden}
+ #globe-canvas,#globe-canvas canvas{width:100%;height:100%;display:block;cursor:grab}
+ #globe-msg{position:absolute;left:12px;top:10px}
+ #globe-legend{position:absolute;right:10px;bottom:10px;background:rgba(2,6,15,.75);padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.6;border:1px solid #1e293b}
+ #globe-legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+ #globe-legend b.ln{display:inline-block;width:18px;height:0;border-top:2px solid;margin-right:6px;vertical-align:3px}
+ .ctl{margin:6px 0} .ctl button{margin-right:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
+ .ctl button.on{background:#2563eb;border-color:#2563eb} .ctl label{margin-left:10px;font-size:13px}
+ .ctl2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0} .ctl2 select{padding:4px}
+ .rp-grid{display:grid;grid-template-columns:minmax(300px,3fr) minmax(260px,2fr);gap:14px;align-items:start}
+ .card{border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:13px;background:#f9fafb}
+ .card .big{font-size:20px;font-weight:700} .card ul{margin:6px 0 0 16px;padding:0}
+ .card.final{border-color:#111827;background:#f3f4f6}
  .tag{font-size:11px;padding:1px 5px;border-radius:4px;background:#e5e7eb;margin-left:3px}
 </style>
 </head>
@@ -117,6 +132,35 @@
  <button class="run" data-url="/api/run/network">{{ 'Re-run network sweep' if net else 'Run network sweep' }}</button>
 </section>
 
+<section id="globe" class="wide dark">
+ <h2>What if it collides? (3D)</h2>
+ <p class="muted2">Drag to rotate, wheel to zoom. Each dot is a sampled fragment (10 cm and up) at the chosen time after the collision.</p>
+ <div class="ctl" id="globe-ctl" style="display:none">
+  <span id="day-btns"></span>
+  <label><input type="checkbox" id="g-all"> all</label>
+  <label><input type="checkbox" id="g-rot" checked> auto-rotate</label>
+ </div>
+ <div id="globe-wrap">
+  <div id="globe-canvas"></div>
+  <div id="globe-legend" style="display:none"></div>
+  <div id="globe-msg" class="muted2">{% if facts %}Loading 3D cloud&hellip;{% else %}Run the analysis first.{% endif %}</div>
+ </div>
+ <div id="globe-fallback" style="display:none"><img id="globe-fb-img" alt="static projection of the debris cloud" width="100%">
+  <p class="muted2">3D view unavailable (WebGL or CDN blocked): showing a static server-side projection.</p></div>
+</section>
+
+<section id="replay" class="wide">
+ <h2>Real-time decision replay</h2>
+ <p class="muted">Historical ESA conjunction (test set, never used for training). CDMs arrive one by one; the decision layer
+ sees only what had arrived so far. Closest approach is at the right edge.</p>
+ <div class="ctl2">
+  <select id="rp-event"></select>
+  <button id="rp-play">Play</button><button id="rp-step">Step</button><button id="rp-reset">Reset</button>
+  <span id="rp-title" class="muted"></span>
+ </div>
+ <div class="rp-grid"><div id="rp-chart"></div><div id="rp-card" class="card"></div></div>
+</section>
+
 <section id="brief" class="wide">
  <h2>7. Operator brief
   {% if brief %}<span class="badge">{{ brief.backend_used }}</span>
@@ -161,6 +205,195 @@ if (regen) regen.addEventListener('click', async () => {
   await fetch('/api/brief/{{ norad }}'); location.reload();
 });
 poll();
+</script>
+<script>
+/* ---------------------------------------------------------------- helpers */
+function esc(t) { return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function getJsonWhenReady(url, tries = 90) {
+  for (let i = 0; i < tries; i++) {
+    const r = await fetch(url);
+    if (r.status === 200) return r.json();
+    if (r.status !== 202) throw new Error(url + ' -> HTTP ' + r.status);
+    await new Promise(res => setTimeout(res, 2000));
+  }
+  throw new Error('timed out waiting for ' + url);
+}
+
+/* ---------------------------------------------------------------- 3D globe */
+(function () {
+  const NORAD = {{ norad }}, HAVE_FACTS = {{ 'true' if facts else 'false' }};
+  const msg = document.getElementById('globe-msg');
+  if (!HAVE_FACTS) return;
+  const COLOURS = [0xffd166, 0xff7b54, 0xd65db1, 0x4cc9f0, 0x90be6d];
+  function fallback(why) {
+    document.getElementById('globe-wrap').style.display = 'none';
+    document.getElementById('globe-ctl').style.display = 'none';
+    document.getElementById('globe-fb-img').src = '/api/globe/' + NORAD + '/fallback.svg';
+    document.getElementById('globe-fallback').style.display = 'block';
+    console.warn('globe fallback:', why);
+  }
+  function loadThree() {
+    return new Promise((ok, bad) => {
+      if (window.THREE) return ok();
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      s.onload = ok; s.onerror = () => bad(new Error('three.js CDN unreachable'));
+      document.head.appendChild(s);
+    });
+  }
+  function build(g) {
+    const host = document.getElementById('globe-canvas');
+    const w = host.clientWidth, h = host.clientHeight;
+    let renderer;
+    try { renderer = new THREE.WebGLRenderer({antialias: true, alpha: true}); }
+    catch (e) { throw new Error('WebGL unavailable'); }
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(w, h);
+    host.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, w / h, 100, 400000);
+    let dist = 24000; camera.position.set(0, 0, dist);
+    const pivot = new THREE.Group(); scene.add(pivot);
+    const world = new THREE.Group(); world.rotation.x = -Math.PI / 2; pivot.add(world); // ECI z -> screen up
+    pivot.rotation.x = 0.35;
+    const R = g.earth_radius_km;
+    world.add(new THREE.Mesh(new THREE.SphereGeometry(R * 0.995, 64, 40),
+      new THREE.MeshBasicMaterial({color: 0x0a2a52})));
+    const gm = new THREE.LineBasicMaterial({color: 0x3b6ea8, transparent: true, opacity: 0.45});
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const pts = [], z = R * Math.sin(lat * Math.PI / 180), rr = R * Math.cos(lat * Math.PI / 180);
+      for (let a = 0; a <= 64; a++) pts.push(new THREE.Vector3(rr * Math.cos(a / 64 * 2 * Math.PI), rr * Math.sin(a / 64 * 2 * Math.PI), z));
+      world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gm));
+    }
+    for (let lon = 0; lon < 360; lon += 30) {
+      const pts = [], l = lon * Math.PI / 180;
+      for (let a = 0; a <= 64; a++) { const t = a / 64 * 2 * Math.PI - Math.PI;
+        pts.push(new THREE.Vector3(R * Math.cos(t / 2) * Math.cos(l), R * Math.cos(t / 2) * Math.sin(l), R * Math.sin(t / 2))); }
+      world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gm));
+    }
+    function line(arr, colour, dashed) {
+      const pts = arr.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = dashed ? new THREE.LineDashedMaterial({color: colour, dashSize: 220, gapSize: 140})
+                         : new THREE.LineBasicMaterial({color: colour});
+      const l = new THREE.Line(geo, mat); if (dashed) l.computeLineDistances(); world.add(l);
+    }
+    line(g.tracks.primary, 0x4cc9f0, false); line(g.tracks.threat, 0xf4a261, false);
+    if (g.burn) line(g.burn.points, 0x80ed99, true);
+    function points(arr, colour, size, opacity) {
+      const f = new Float32Array(arr.length * 3);
+      arr.forEach((p, i) => { f[3 * i] = p[0]; f[3 * i + 1] = p[1]; f[3 * i + 2] = p[2]; });
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(f, 3));
+      const pt = new THREE.Points(geo, new THREE.PointsMaterial({color: colour, size: size, sizeAttenuation: false, transparent: true, opacity: opacity}));
+      world.add(pt); return pt;
+    }
+    if (g.satellites.length) points(g.satellites.map(s => s.xyz), 0x80ed99, 5, 1);
+    const cp = new THREE.Mesh(new THREE.SphereGeometry(110, 12, 8), new THREE.MeshBasicMaterial({color: 0xff3b3b}));
+    cp.position.set(g.collision_point[0], g.collision_point[1], g.collision_point[2]); world.add(cp);
+    const layers = g.snapshots.map((s, i) => { const p = points(s.points, COLOURS[i % COLOURS.length], 2.6, 0.9); p.visible = false; return p; });
+    const btns = document.getElementById('day-btns'); btns.innerHTML = '';
+    let cur = Math.min(2, layers.length - 1), all = false;
+    function show() {
+      layers.forEach((p, i) => p.visible = all ? true : i === cur);
+      [...btns.children].forEach((b, i) => b.classList.toggle('on', all || i === cur));
+    }
+    g.snapshots.forEach((s, i) => { const b = document.createElement('button');
+      b.textContent = s.day + (s.day === 1 ? ' day' : ' days'); b.onclick = () => { cur = i; all = false; document.getElementById('g-all').checked = false; show(); }; btns.appendChild(b); });
+    document.getElementById('g-all').onchange = e => { all = e.target.checked; show(); };
+    document.getElementById('globe-ctl').style.display = 'block'; show();
+    const lg = document.getElementById('globe-legend');
+    lg.innerHTML = '<div><b>' + esc(g.primary) + '</b> vs <b>' + esc(g.threat) + '</b></div>' +
+      '<div><i style="background:#ffd166"></i>fragments 10 cm and up: ' + Math.round(g.fragments_true).toLocaleString() + ' (sampled ' + g.snapshots[0].n.toLocaleString() + ')</div>' +
+      '<div><b class="ln" style="border-color:#4cc9f0"></b>primary orbit &nbsp;<b class="ln" style="border-color:#f4a261"></b>threat orbit</div>' +
+      (g.burn ? '<div><b class="ln" style="border-top-style:dashed;border-color:#80ed99"></b>best burn ' + esc(g.burn.burn_id) + ' (offset x' + g.burn.exaggeration + ')</div>' : '') +
+      (g.satellites.length ? '<div><i style="background:#80ed99"></i>most exposed satellites (' + g.satellites.length + ')</div>' : '') +
+      '<div><i style="background:#ff3b3b"></i>collision point</div>';
+    lg.style.display = 'block'; msg.style.display = 'none';
+    let drag = false, lx = 0, ly = 0; const el = renderer.domElement;
+    el.addEventListener('pointerdown', e => { drag = true; lx = e.clientX; ly = e.clientY; el.setPointerCapture(e.pointerId); el.style.cursor = 'grabbing'; });
+    el.addEventListener('pointerup', () => { drag = false; el.style.cursor = 'grab'; });
+    el.addEventListener('pointermove', e => { if (!drag) return;
+      pivot.rotation.y += (e.clientX - lx) * 0.006;
+      pivot.rotation.x = Math.max(-1.5, Math.min(1.5, pivot.rotation.x + (e.clientY - ly) * 0.006)); lx = e.clientX; ly = e.clientY; });
+    el.addEventListener('wheel', e => { e.preventDefault(); dist = Math.max(9000, Math.min(60000, dist * (1 + Math.sign(e.deltaY) * 0.08))); camera.position.z = dist; }, {passive: false});
+    window.addEventListener('resize', () => { const W = host.clientWidth, H = host.clientHeight; renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix(); });
+    (function loop() { requestAnimationFrame(loop);
+      if (!drag && document.getElementById('g-rot').checked) pivot.rotation.y += 0.0025;
+      renderer.render(scene, camera); })();
+  }
+  (async () => {
+    try {
+      const g = await getJsonWhenReady('/api/globe/' + NORAD);
+      await loadThree(); build(g);
+    } catch (e) { fallback(e.message); }
+  })();
+})();
+
+/* ---------------------------------------------------------------- decision replay */
+(function () {
+  const sel = document.getElementById('rp-event'), chart = document.getElementById('rp-chart'), card = document.getElementById('rp-card');
+  const COL = {MONITOR: '#2563eb', WAIT: '#d97706', ACT: '#dc2626'};
+  let steps = [], fin = null, idx = 0, timer = null;
+  const ymin = -12, ymax = -3;
+  function draw() {
+    if (!steps.length) return;
+    const W = 560, H = 270, L = 44, Rr = 14, T = 14, B = 66, pw = W - L - Rr, ph = H - T - B;
+    const t0 = steps[0].time_to_tca_days;
+    const X = t => L + pw * (t0 - t) / Math.max(t0, 1e-6);          // right edge = closest approach (t = 0)
+    const Y = r => T + ph * (ymax - Math.max(ymin, Math.min(ymax, r))) / (ymax - ymin);
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="risk over time">';
+    for (let v = -12; v <= -3; v += 3) s += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#e5e7eb"/><text x="' + (L - 4) + '" y="' + (Y(v) + 4) + '" font-size="10" text-anchor="end">' + v + '</text>';
+    s += '<text x="12" y="' + (T + ph / 2) + '" font-size="10" transform="rotate(-90 12 ' + (T + ph / 2) + ')" text-anchor="middle">log10 Pc (latest CDM)</text>';
+    s += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(-6) + '" y2="' + Y(-6) + '" stroke="#dc2626" stroke-dasharray="5 4"/><text x="' + (L + 4) + '" y="' + (Y(-6) - 4) + '" font-size="10" fill="#dc2626">-6 threshold</text>';
+    const by = T + ph + 22;
+    for (let i = 0; i <= idx; i++) {
+      const xa = X(steps[i].time_to_tca_days), xb = i < steps.length - 1 ? X(steps[i + 1].time_to_tca_days) : W - Rr;
+      const xe = i < idx ? xb : xa + 6;
+      s += '<rect x="' + xa + '" y="' + by + '" width="' + Math.max(xe - xa, 3) + '" height="16" fill="' + COL[steps[i].action] + '" opacity="0.9"><title>' + steps[i].action + '</title></rect>';
+    }
+    s += '<text x="' + L + '" y="' + (by + 30) + '" font-size="10" fill="#374151">decision band: MONITOR (blue) / WAIT (amber) / ACT (red) per CDM</text>';
+    s += '<text x="' + L + '" y="' + (H - 4) + '" font-size="10">' + t0.toFixed(1) + ' d before closest approach</text><text x="' + (W - Rr) + '" y="' + (H - 4) + '" font-size="10" text-anchor="end">closest approach</text>';
+    let path = '';
+    for (let i = 0; i <= idx; i++) path += (i ? 'L' : 'M') + X(steps[i].time_to_tca_days).toFixed(1) + ',' + Y(steps[i].latest_risk).toFixed(1);
+    s += '<path d="' + path + '" fill="none" stroke="#111827" stroke-width="1.6"/>';
+    for (let i = 0; i <= idx; i++) s += '<circle cx="' + X(steps[i].time_to_tca_days) + '" cy="' + Y(steps[i].latest_risk) + '" r="' + (i === idx ? 5 : 3) + '" fill="' + COL[steps[i].action] + '" stroke="#fff"/>';
+    const done = idx === steps.length - 1;
+    if (fin && done) {
+      const fx = W - Rr - 8, fy = Y(fin.true_final_risk);
+      s += '<path d="M' + fx + ',' + (fy - 8) + 'L' + (fx + 7) + ',' + fy + 'L' + fx + ',' + (fy + 8) + 'L' + (fx - 7) + ',' + fy + 'Z" fill="' + (fin.true_high ? '#dc2626' : '#16a34a') + '" stroke="#111827" stroke-width="1.5"><title>actual final risk ' + fin.true_final_risk.toFixed(2) + '</title></path>';
+      s += '<text x="' + (fx - 10) + '" y="' + (fy - 10) + '" font-size="10" text-anchor="end" font-weight="bold">what actually happened: ' + (fin.true_final_risk < ymin ? '< ' + ymin : fin.true_final_risk.toFixed(2)) + '</text>';
+    }
+    chart.innerHTML = s + '</svg>';
+    const d = steps[idx];
+    let h = '<div><span class="badge" style="background:' + COL[d.action] + '">' + d.action + '</span> <span class="big">' + d.time_to_tca_days.toFixed(1) + ' d to closest approach</span></div>' +
+      '<p style="margin:6px 0">CDM ' + d.n_cdms + ' of ' + steps.length + '. Latest risk <b>' + d.latest_risk.toFixed(2) + '</b>, predicted <b>' + d.predicted_risk.toFixed(2) + '</b> (80% interval ' + d.interval[0].toFixed(1) + ' to ' + d.interval[1].toFixed(1) + '), P(high) <b>' + d.p_high.toFixed(2) + '</b></p><ul>' +
+      d.reasons.map(r => '<li class="muted">' + esc(r) + '</li>').join('') + '</ul>';
+    if (fin && done) h += '<hr><div class="big">Actual outcome: ' + (fin.true_high ? 'HIGH risk (' : 'low risk (') + fin.true_final_risk.toFixed(2) + ')</div><p class="muted">Final decision was ' + d.action + ': ' +
+      (fin.true_high ? (d.action === 'ACT' ? 'correctly flagged.' : 'a MISS, the model did not recommend action.') : (d.action === 'ACT' ? 'a false alarm.' : 'correctly dismissed.')) + '</p>';
+    card.className = 'card' + (fin && done ? ' final' : ''); card.innerHTML = h;
+    document.getElementById('rp-play').textContent = timer ? 'Pause' : (done ? 'Replay' : 'Play');
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  function step() { if (idx < steps.length - 1) idx++; if (idx >= steps.length - 1) stop(); draw(); }
+  async function load(id) {
+    stop(); chart.innerHTML = '<p class="muted">loading&hellip;</p>';
+    const r = await fetch('/api/replay/' + id);
+    if (!r.ok) { chart.innerHTML = '<p class="muted">Replay data not available (' + r.status + ').</p>'; return; }
+    const data = await r.json(); steps = data.steps.filter(s => !s.final); fin = data.steps.find(s => s.final) || null; idx = 0; draw();
+  }
+  document.getElementById('rp-play').onclick = () => { if (timer) { stop(); draw(); return; }
+    if (idx >= steps.length - 1) idx = 0; timer = setInterval(step, 1300); draw(); };
+  document.getElementById('rp-step').onclick = () => { stop(); step(); };
+  document.getElementById('rp-reset').onclick = () => { stop(); idx = 0; draw(); };
+  sel.onchange = () => { const o = sel.selectedOptions[0]; document.getElementById('rp-title').textContent = o ? o.dataset.sum : ''; load(sel.value); };
+  (async () => {
+    try {
+      const picks = await getJsonWhenReady('/api/replay/demo');
+      sel.innerHTML = picks.map(p => '<option value="' + p.event_id + '" data-sum="' + esc(p.title + ' (' + p.summary.n_steps + ' CDMs, final action ' + p.summary.final_action + ')') + '">Event ' + p.event_id + ': ' + esc(p.title) + '</option>').join('');
+      if (picks.length) sel.onchange();
+    } catch (e) { chart.innerHTML = '<p class="muted">Replay unavailable: ' + esc(e.message) + '</p>'; }
+  })();
+})();
 </script>
 </body>
 </html>

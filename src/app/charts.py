@@ -85,3 +85,53 @@ def network_svg(nodes: list[dict], edges: list[dict], n_top: int = 50, width: in
             out.append(f"<text x='{x + r + 2:.1f}' y='{y + 3:.1f}' font-size='9'>{escape(n['name'])[:16]}</text>")
     out.append("</svg>")
     return "".join(out)
+
+
+def globe_svg(g: dict, snap: int = -2, width: int = 560, height: int = 400) -> str:
+    """Static orthographic projection of the globe payload, used when WebGL or the three.js CDN is unavailable."""
+    import numpy as np
+
+    view = np.array([0.8, -0.5, 0.45])
+    view /= np.linalg.norm(view)
+    right = np.cross([0.0, 0.0, 1.0], view)
+    right /= np.linalg.norm(right)
+    up = np.cross(view, right)
+    re = float(g.get("earth_radius_km", 6371.0))
+    snaps = g.get("snapshots") or []
+    extent = 1.0
+    for arr in [s_["points"] for s_ in snaps] + [g.get("tracks", {}).get("primary", [])]:
+        if len(arr):
+            extent = max(extent, float(np.abs(np.asarray(arr)).max()))
+    extent = max(extent, re) * 1.08
+    sc = min(width, height) / 2 / extent
+    cx, cy = width / 2, height / 2
+
+    def proj(a):
+        a = np.asarray(a, dtype=float).reshape(-1, 3)
+        x, y, d = a @ right, a @ up, a @ view
+        hidden = (d < 0) & (np.hypot(x, y) < re)
+        return cx + x * sc, cy - y * sc, hidden
+
+    out = [f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {width} {height}' width='100%' role='img' "
+           f"aria-label='debris cloud projection' style='background:#050b18'>",
+           f"<circle cx='{cx}' cy='{cy}' r='{re * sc:.1f}' fill='#0b2447' stroke='#2c5282'/>"]
+    for name, col, dash in (("primary", "#4cc9f0", ""), ("threat", "#f4a261", "")):
+        pts = g.get("tracks", {}).get(name) or []
+        if len(pts) > 1:
+            x, y, h = proj(pts)
+            out.append(f"<polyline points='{' '.join(f'{a:.1f},{b:.1f}' for a, b in zip(x, y))}' fill='none' "
+                       f"stroke='{col}' stroke-width='1.2' opacity='0.9'/>")
+    burn = g.get("burn")
+    if burn and len(burn.get("points", [])) > 1:
+        x, y, h = proj(burn["points"])
+        out.append(f"<polyline points='{' '.join(f'{a:.1f},{b:.1f}' for a, b in zip(x, y))}' fill='none' "
+                   f"stroke='#80ed99' stroke-width='1.2' stroke-dasharray='5 4'/>")
+    if snaps:
+        s_ = snaps[snap]
+        x, y, h = proj(s_["points"]) if len(s_["points"]) else ([], [], [])
+        out.append("<g fill='#ffd166' fill-opacity='0.75'>" + "".join(
+            f"<circle cx='{a:.1f}' cy='{b:.1f}' r='1.3'/>" for a, b, hd in zip(x, y, h) if not hd) + "</g>")
+        out.append(f"<text x='10' y='20' fill='#e2e8f0' font-size='12'>day {s_['day']:g}, {s_['n']} of "
+                   f"{g.get('fragments_true', 0):,.0f} fragments sampled (static view)</text>")
+    out.append("</svg>")
+    return "".join(out)

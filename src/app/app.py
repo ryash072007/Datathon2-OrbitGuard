@@ -12,13 +12,13 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, Response, abort, jsonify, render_template, request
 
 from src.brief.brief import make_brief_from_facts
 from src.brief.facts import collect_facts, latest_file, load_cached_facts, save_facts
 from src.screen.catalog import data_dir
 
-from .charts import bar_chart, network_svg, slope_chart
+from .charts import bar_chart, globe_svg, network_svg, slope_chart
 from .jobs import Jobs
 
 ISS_NORAD = 25544
@@ -62,6 +62,34 @@ def make_and_cache_brief(facts: dict) -> dict:
     return d
 
 
+def _globe_path(norad: int) -> Path:
+    return out_dir() / f"globe_{norad}.json"
+
+
+def _replay_path(event_id: int) -> Path:
+    return out_dir() / f"replay_{event_id}.json"
+
+
+def _replay_demo_path() -> Path:
+    return out_dir() / "replay_demo.json"
+
+
+def _read_json(p: Path) -> dict | list | None:
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def _write_json(p: Path, obj) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(obj, separators=(",", ":")), encoding="utf-8")
+
+
+def compute_replay(event_id: int) -> dict:
+    from src.risk.replay import replay
+    d = {"event_id": event_id, "split": "test", "steps": replay(event_id)}
+    _write_json(_replay_path(event_id), d)
+    return d
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     jobs = Jobs()
@@ -81,6 +109,22 @@ def create_app() -> Flask:
     def survey_job() -> None:
         from src.consequence.run import main as survey_main
         survey_main(["--survey", "20", "--seed", "0"])
+
+    def globe_job(norad: int):
+        def fn() -> None:
+            from src.consequence.snapshot import cloud_snapshots
+            facts = load_cached_facts(norad)
+            if facts is None:
+                raise RuntimeError(f"no cached analysis for NORAD {norad}")
+            cloud_snapshots(facts)
+        return fn
+
+    def replay_demo_job() -> None:
+        from src.risk.replay import pick_demo_events
+        picks = pick_demo_events()
+        for d in picks:
+            compute_replay(d["event_id"])
+        _write_json(_replay_demo_path(), picks)
 
     @app.get("/")
     def index():
@@ -106,7 +150,8 @@ def create_app() -> Flask:
             slope=slope_chart(survey, selected=norad), n_survey=len(survey),
             net=net, net_top=(net or {}).get("nodes", [])[:15],
             net_svg=network_svg(net["nodes"], net["edges"]) if net else "",
-            llm_backend=os.environ.get("LLM_BACKEND", "template"))
+            llm_backend=os.environ.get("LLM_BACKEND", "template"),
+            globe_ready=_globe_path(norad).exists())
 
     @app.get("/api/status")
     def status():
@@ -138,5 +183,40 @@ def create_app() -> Flask:
         if facts is None:
             return jsonify({"status": "missing"}), 404
         return jsonify(make_and_cache_brief(facts))
+
+    @app.route("/api/globe/<int:norad>", methods=["GET", "POST"])
+    def api_globe(norad: int):
+        cached = _read_json(_globe_path(norad))
+        if request.method == "GET" and cached is not None:
+            return jsonify(cached)
+        if load_cached_facts(norad) is None:
+            return jsonify({"status": "missing", "hint": f"run the analysis for NORAD {norad} first"}), 404
+        started = jobs.start(f"globe:{norad}", globe_job(norad), f"3D cloud for NORAD {norad}")
+        return jsonify({"status": "computing", "started": started, "poll": "/api/status"}), 202
+
+    @app.get("/api/globe/<int:norad>/fallback.svg")
+    def api_globe_svg(norad: int):
+        cached = _read_json(_globe_path(norad))
+        if cached is None:
+            abort(404)
+        return Response(globe_svg(cached), mimetype="image/svg+xml")
+
+    @app.get("/api/replay/demo")
+    def api_replay_demo():
+        picks = _read_json(_replay_demo_path())
+        if picks is not None:
+            return jsonify(picks)
+        started = jobs.start("replay_demo", replay_demo_job, "choosing replay demo events")
+        return jsonify({"status": "computing", "started": started, "poll": "/api/status"}), 202
+
+    @app.get("/api/replay/<int:event_id>")
+    def api_replay(event_id: int):
+        cached = _read_json(_replay_path(event_id))
+        if cached is not None:
+            return jsonify(cached)
+        try:
+            return jsonify(compute_replay(event_id))
+        except (ValueError, FileNotFoundError) as exc:
+            return jsonify({"status": "missing", "error": str(exc)}), 404
 
     return app
