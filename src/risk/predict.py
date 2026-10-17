@@ -21,10 +21,14 @@ def _load() -> dict:
 
 
 def predict_risk(cdms: pd.DataFrame) -> float:
-    """CDM rows of ONE event -> predicted final log10 Pc (uses CDMs with time_to_tca >= 2)."""
-    from src.risk.train import predict_table
+    """CDM rows of ONE event -> predicted final log10 Pc (uses CDMs with time_to_tca >= 2).
+
+    Uses the decision layer (models/decision.joblib) when present, else the naive latest-CDM risk.
+    """
+    from src.risk.decision import DECISION_PATH, decide
     u = cdms[cdms["time_to_tca"] >= MIN_TTCA_DAYS]
     if u.empty:
         raise ValueError("Event has no CDMs with time_to_tca >= 2 days")
-    tab = build_table(u.assign(event_id=0))
-    return float(predict_table(_load(), tab)[0])
+    if DECISION_PATH.exists():
+        return decide(cdms).predicted_risk
+    return float(build_table(u.assign(event_id=0))["naive_risk"].iloc[0])

@@ -19,6 +19,16 @@ python -m src.risk.evaluate    # naive vs model on the ESA test set -> models/ri
 python -m pytest tests -q
 ```
 
+## Phase 2: decision layer
+
+```bash
+python -m src.risk.decision fit    # learns rules/gate by GroupKFold CV on train -> models/decision.joblib
+python -m src.risk.decision eval   # naive vs chosen candidate on test (once), interval coverage, example Decision
+```
+
+`predict_risk` uses `models/decision.joblib` when present (else the naive latest-CDM risk);
+`src.risk.decision.decide(cdms)` returns action (ACT/WAIT/MONITOR), P(high), 80% interval and reasons.
+
 ## Credits
 
 - ESA Collision Avoidance Challenge dataset: https://zenodo.org/records/4463683 and https://kelvins.esa.int/collision-avoidance-challenge/
