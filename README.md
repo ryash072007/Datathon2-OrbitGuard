@@ -60,7 +60,7 @@ None of it can override the physics or the operator.
 | --- | --- |
 | Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
 | Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite answering operator questions through read-only tools, under guards we measured |
-| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/` |
+| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/`. Both prerequisite labs: [completed on the VM](#prerequisite-labs-completed-on-linuxone) |
 | Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 200 tests, including [enforced data boundaries](docs/DATA_BOUNDARIES.md) (only evaluation code can read labels; the physics gate imports nothing from the ML, Granite or the operator log). The console reads only artefacts and shows "missing" instead of a number it can't back |
 
 ## Architecture
@@ -170,11 +170,26 @@ added the decision-layer evaluation path.
 - **Porting done properly.** The sgp4 C extension is built from source (the s390x pure-Python fallback was about 70x
   slower). The code uses explicit byte order, spawn-safe multiprocessing, and models retrained on the VM rather than copied.
 - **Security and integrity.** A hardened systemd unit (NoNewPrivileges, ProtectSystem=strict, writes only to
-  `artifacts/`) binds to loopback behind an SSH tunnel. Model fingerprints are SHA-256. The audit log is a hash
+  `artifacts/`) binds to loopback; the public demo at https://148.100.76.224 goes through a TLS proxy with a Let's Encrypt
+  IP certificate ([scripts/linuxone-public.sh](scripts/linuxone-public.sh)). Model fingerprints are SHA-256. The audit log is a hash
   chain. Python's `hashlib` goes through OpenSSL, which uses the CPACF crypto instructions on IBM Z for SHA-256;
   `scripts/evidence.sh` records the message-security-assist flags and throughput. Secure Execution and pervasive
   encryption are a design note, not something we ran.
 - **Containerised.** A multi-stage [Dockerfile](Dockerfile) builds the console and runs gunicorn on the official s390x image.
+
+## Prerequisite labs (completed on LinuxONE)
+
+Both guidebook labs from [linuxone-community-cloud/jupyter-lab-ml](https://github.com/linuxone-community-cloud/jupyter-lab-ml)
+ran end to end on the team VM (s390x, machine type 9175) inside IBM's Jupyter Lab container on 17 Oct 2026. The executed
+notebooks, with their outputs, and screenshots are in [docs/labs/](docs/labs/README.md).
+
+| Lab | Notebook | Result on LinuxONE |
+| --- | --- | --- |
+| 1. Predictive AI, hybrid multi-model | [Churn (scikit-learn + PyTorch)](docs/labs/Churn_Scikit_PyTorch_executed_on_LinuxONE.ipynb) | 31 of 31 code cells, 0 errors. Random Forest exported to PMML; PyTorch test accuracy 76.2% |
+| 2. Predictive AI + Generative AI | [Loan approval (Granite + XGBoost)](docs/labs/Loan_Approval_Demo_executed_on_LinuxONE.ipynb) | 9 of 9 code cells, 0 errors. Granite on llama.cpp built with zDNN/NNPA extracts features, XGBoost scores risk: applicant 5 low risk (p = 0.997), "Approve" |
+| Environment check | [LinuxONE_environment_check.ipynb](docs/labs/LinuxONE_environment_check.ipynb) | `s390x`, `IBM/S390`, machine 9175 from inside the same container |
+
+![Lab 2 on LinuxONE: llama.cpp zDNN/NNPA build and the Granite model](docs/labs/screenshots/2_loan_zdnn.png)
 
 ## Run it
 
@@ -286,6 +301,9 @@ pytest https://pytest.org · llama.cpp https://github.com/ggml-org/llama.cpp (s3
 llama-cpp-python https://github.com/abetlen/llama-cpp-python · TensorFlow https://www.tensorflow.org ·
 IBM zDNN plugin for TensorFlow https://pypi.org/project/ibm-zdnn-plugin/ ·
 IBM Snap ML https://snapml.readthedocs.io · https://pypi.org/project/snapml/
+
+Prerequisite labs: IBM LinuxONE Community Cloud Jupyter Lab ML notebooks https://github.com/linuxone-community-cloud/jupyter-lab-ml ·
+PyTorch https://pytorch.org · XGBoost https://xgboost.ai
 
 Console: React https://react.dev · TypeScript https://www.typescriptlang.org · Vite https://vite.dev ·
 Recharts https://recharts.org · three.js https://threejs.org · d3-geo https://github.com/d3/d3-geo ·
