@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#161616"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f62fe"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="40" y="52" font-size="32" font-weight="bold" fill="#161616">Satellite collision avoidance: decision support on IBM LinuxONE</text>
+<text x="40" y="84" font-size="18" fill="#525252">Real-Time AI for Critical Decisions. A human operator always makes the call.</text>
+<text x="40" y="150" font-size="18" font-weight="bold" fill="#525252" letter-spacing="1">DATA SOURCES</text>
+<rect x="40" y="180" width="300" height="150" rx="8" fill="#f4f4f4" stroke="#8d8d8d" stroke-width="1.5"/>
+<text x="56" y="214" font-size="20" font-weight="bold" fill="#161616">ESA CDM dataset</text>
+<text x="56" y="244" font-size="17" fill="#393939">Collision Avoidance Challenge</text>
+<text x="56" y="268" font-size="17" fill="#393939">2015-2019, 13,154 events</text>
+<text x="56" y="292" font-size="17" fill="#393939">(conjunction data messages)</text>
+<rect x="40" y="400" width="300" height="160" rx="8" fill="#f4f4f4" stroke="#8d8d8d" stroke-width="1.5"/>
+<text x="56" y="434" font-size="20" font-weight="bold" fill="#161616">CelesTrak (live)</text>
+<text x="56" y="464" font-size="17" fill="#393939">TLEs: public orbits of</text>
+<text x="56" y="488" font-size="17" fill="#393939">~17k catalogue objects</text>
+<text x="56" y="512" font-size="17" fill="#393939">SATCAT: object type, status</text>
+<rect x="390" y="110" width="860" height="560" rx="12" fill="#edf5ff" stroke="#0f62fe" stroke-width="3"/>
+<text x="410" y="142" font-size="21" font-weight="bold" fill="#0f62fe">IBM LinuxONE (s390x) — Community Cloud VM, container</text>
+<rect x="410" y="170" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="436" cy="198" r="14" fill="#0f62fe"/><text x="436" y="204" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+<text x="460" y="204" font-size="20" font-weight="bold" fill="#161616">Act / Wait / Monitor</text>
+<text x="426" y="234" font-size="17" fill="#393939">scikit-learn, CV-learned rules</text>
+<text x="426" y="258" font-size="17" fill="#393939">+ calibrated P(high risk)</text>
+<rect x="830" y="170" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="856" cy="198" r="14" fill="#0f62fe"/><text x="856" y="204" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">2</text>
+<text x="880" y="204" font-size="20" font-weight="bold" fill="#161616">Cascade-aware screener</text>
+<text x="846" y="234" font-size="17" fill="#393939">SGP4 + J2 delta propagation</text>
+<text x="846" y="258" font-size="17" fill="#393939">parallel across all cores</text>
+<rect x="410" y="330" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="436" cy="358" r="14" fill="#0f62fe"/><text x="436" y="364" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">3</text>
+<text x="460" y="364" font-size="20" font-weight="bold" fill="#161616">Consequence engine</text>
+<text x="426" y="394" font-size="17" fill="#393939">NASA SBM breakup, 30-day debris</text>
+<text x="426" y="418" font-size="17" fill="#393939">density, satellites put at risk</text>
+<rect x="830" y="330" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="856" cy="358" r="14" fill="#0f62fe"/><text x="856" y="364" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+<text x="880" y="364" font-size="20" font-weight="bold" fill="#161616">Super-spreader network</text>
+<text x="846" y="394" font-size="17" fill="#393939">catalogue-wide close-approach</text>
+<text x="846" y="418" font-size="17" fill="#393939">sweep (10 s steps, KD-tree)</text>
+<rect x="410" y="490" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="436" cy="518" r="14" fill="#0f62fe"/><text x="436" y="524" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">5</text>
+<text x="460" y="524" font-size="20" font-weight="bold" fill="#161616">IBM Granite 3.3 2B (llama.cpp)</text>
+<text x="426" y="554" font-size="17" fill="#393939">writes the operator brief; grounding</text>
+<text x="426" y="578" font-size="17" fill="#393939">guard checks every number</text>
+<rect x="830" y="490" width="400" height="120" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<circle cx="856" cy="518" r="14" fill="#0f62fe"/><text x="856" y="524" font-size="17" font-weight="bold" fill="#fff" text-anchor="middle">6</text>
+<text x="880" y="524" font-size="20" font-weight="bold" fill="#161616">Tamper-evident audit log</text>
+<text x="846" y="554" font-size="17" fill="#393939">hash-chained record of inputs,</text>
+<text x="846" y="578" font-size="17" fill="#393939">outputs and operator choice</text>
+<text x="410" y="645" font-size="16" fill="#525252">Model converted to big-endian GGUF for s390x. Same code and commands as the dev box.</text>
+<text x="1290" y="150" font-size="18" font-weight="bold" fill="#525252" letter-spacing="1">OUTPUT</text>
+<rect x="1290" y="180" width="270" height="150" rx="8" fill="#fff" stroke="#161616" stroke-width="1.5"/>
+<text x="1306" y="214" font-size="20" font-weight="bold" fill="#161616">Human operator</text>
+<text x="1306" y="244" font-size="17" fill="#393939">reviews options and</text>
+<text x="1306" y="268" font-size="17" fill="#393939">brief, then decides</text>
+<text x="1306" y="292" font-size="17" fill="#393939">(human-in-the-loop)</text>
+<rect x="1290" y="400" width="270" height="160" rx="8" fill="#fff" stroke="#0f62fe" stroke-width="1.5"/>
+<text x="1306" y="434" font-size="20" font-weight="bold" fill="#161616">Flask dashboard</text>
+<text x="1306" y="464" font-size="17" fill="#393939">8 panels: decision, burns,</text>
+<text x="1306" y="488" font-size="17" fill="#393939">consequence, network,</text>
+<text x="1306" y="512" font-size="17" fill="#393939">brief, s390x / big footer</text>
+<path d="M340,255 H408" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M340,480 H388" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<text x="45" y="590" font-size="16" fill="#525252">Data stays on the box:</text><text x="45" y="612" font-size="16" fill="#525252">no cloud API calls.</text>
+<path d="M810,230 H828" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M1030,290 V310 H610 V328" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M810,390 H828" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M1030,450 V470 H610 V488" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M810,550 H828" stroke="#161616" stroke-width="2.5" fill="none" marker-end="url(#ar)"/>
+<path d="M1230,550 H1288" stroke="#0f62fe" stroke-width="3" fill="none" marker-end="url(#aa)"/>
+<path d="M1425,400 V332" stroke="#0f62fe" stroke-width="3" fill="none" marker-end="url(#aa)"/>
+<text x="1437" y="372" font-size="16" fill="#161616">decision</text>
+
+<rect x="40" y="740" width="360" height="48" rx="24" fill="#0f62fe"/><text x="220.0" y="771" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">Predictive AI + Generative AI</text>
+<rect x="420" y="740" width="200" height="48" rx="24" fill="#0f62fe"/><text x="520.0" y="771" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">Multi-model</text>
+<rect x="640" y="740" width="480" height="48" rx="24" fill="#0f62fe"/><text x="880.0" y="771" font-size="18" font-weight="bold" fill="#fff" text-anchor="middle">Runs on-prem: data never leaves the box</text>
+<text x="40" y="840" font-size="16" fill="#525252">Decision support only. Sources: ESA Collision Avoidance Challenge, CelesTrak, NASA Standard Breakup Model, IBM Granite, llama.cpp.</text>
+</svg>
