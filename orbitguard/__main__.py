@@ -24,6 +24,9 @@ MODULE_COMMANDS = {
     "zai-fit": ("orbitguard.zai.snap", ["fit"]),
     "zai-eval": ("orbitguard.zai.snap", ["eval"]),
     "zai-bench": ("orbitguard.zai.bench", []),
+    "optimise-burns": ("orbitguard.optimise.run", []),
+    "guard-eval": ("orbitguard.brief.guard_eval", []),
+    "ask": ("orbitguard.brief.agent", []),
 }
 
 
