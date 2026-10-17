@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from src.network.graph import build_network, merge_pairs, pairs_from_positions, score_graph
+from src.network.graph import build_network, encounters_from_state, merge_encounters, score_graph
 from src.screen.catalog import CatalogRecord
 
 L2 = "2 {n:05d}  51.6326  58.3278 0006748 271.9059  88.1156 15.48899044590607"
@@ -13,30 +13,30 @@ def _rec(norad: int, name: str, crit: float = 0.5) -> CatalogRecord:
     return CatalogRecord(name, norad, "1 x", L2.format(n=norad), "active", 500.0, 510.0, crit)
 
 
-def _positions() -> np.ndarray:
-    # 5 objects, 3 time steps. Object 0 is within 10 km of 1 and 2 (twice with 1); 3 and 4 are far from all.
-    pos = np.zeros((5, 3, 3))
-    pos[:, :, 0] = np.array([0.0, 5.0, 8.0, 500.0, 1000.0])[:, None]
-    pos[1, 2, 0] = 400.0          # object 1 leaves at step 2
-    pos[2, 1, 0] = 900.0          # object 2 leaves at step 1 and step 2? (only step 1 here)
-    pos[4, 1, :] = np.nan         # SGP4 failure must be skipped
-    return pos
+def test_crossing_between_samples_is_detected():
+    # Head-on pair, 10 km/s closing, 2 km miss in z, closest approach at t=7 s: between the t=0 and t=15 s
+    # samples (70 km and 80 km apart). The old fixed-radius pair search at 10 km missed this.
+    pos = np.zeros((2, 2, 3))
+    vel = np.zeros((2, 2, 3))
+    for t, dt in enumerate((0.0, 15.0)):
+        pos[0, t] = [-35.0 + 5.0 * dt, 0.0, 0.0]
+        pos[1, t] = [35.0 - 5.0 * dt, 0.0, 2.0]
+    vel[0, :, 0], vel[1, :, 0] = 5.0, -5.0
+    assert np.min(np.linalg.norm(pos[0] - pos[1], axis=1)) > 10.0
+    k, st, d, v = encounters_from_state(pos, vel, 15.0, 10.0)
+    i, j, enc, mind, maxv = merge_encounters([(k, st, d, v)], 2)
+    assert (int(i[0]), int(j[0]), int(enc[0])) == (0, 1, 1)   # both steps hit, merged into one encounter
+    assert abs(mind[0] - 2.0) < 1e-6 and abs(maxv[0] - 10.0) < 1e-9
 
 
-def test_pairs_counts_and_min_distance():
-    i, j, steps, mind = pairs_from_positions(_positions(), 10.0)
-    got = {(int(a), int(b)): (int(s), float(d)) for a, b, s, d in zip(i, j, steps, mind)}
-    assert got[(0, 1)] == (2, 5.0)      # steps 0 and 1
-    assert got[(0, 2)] == (2, 8.0)      # steps 0 and 2
-    assert got[(1, 2)][0] == 1 and abs(got[(1, 2)][1] - 3.0) < 1e-9
-    assert (3, 4) not in got
-
-
-def test_merge_pairs_adds_counts_and_takes_min():
-    a = (np.array([1, 7]), np.array([2, 1]), np.array([3.0, 5.0]))
-    b = (np.array([1]), np.array([4]), np.array([2.0]))
-    i, j, s, d = merge_pairs([a, b], 4)
-    assert list(zip(i, j, s, d)) == [(0, 1, 6, 2.0), (1, 3, 1, 5.0)]
+def test_merge_encounters_splits_on_gaps_and_takes_extremes():
+    key = np.array([1, 1, 1, 1, 7])
+    step = np.array([3, 4, 9, 10, 5])
+    dist = np.array([4.0, 2.0, 6.0, 5.0, 1.0])
+    vrel = np.array([1.0, 3.0, 2.0, 2.0, 9.0])
+    a, b = (key[:3], step[:3], dist[:3], vrel[:3]), (key[3:], step[3:], dist[3:], vrel[3:])
+    i, j, enc, mind, maxv = merge_encounters([b, a], 4)
+    assert list(zip(i, j, enc, mind, maxv)) == [(0, 1, 2, 2.0, 3.0), (1, 3, 1, 1.0, 9.0)]
 
 
 def test_score_prefers_connected_heavy_and_critical():

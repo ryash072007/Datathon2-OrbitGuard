@@ -1,4 +1,4 @@
-"""CLI: python -m src.network.run --hours 24 [--step-s 60] [--r-km 10] [--workers N]"""
+"""CLI: python -m src.network.run --hours 24 [--step-s 10] [--r-km 10] [--workers N]"""
 from __future__ import annotations
 
 import argparse
@@ -12,7 +12,7 @@ from src.screen.parallel import default_workers
 from .graph import build_network, select_nodes, sweep
 
 
-def run_network(hours: float = 24.0, step_s: float = 60.0, r_km: float = 10.0, top: int = 300,
+def run_network(hours: float = 24.0, step_s: float = 10.0, r_km: float = 10.0, top: int = 300,
                 workers: int | None = None, refresh: bool = False, verbose: bool = True):
     """Run the sweep, write data/out/network_<utc>.json, return (path, payload)."""
     workers = workers or default_workers()
@@ -42,7 +42,7 @@ def run_network(hours: float = 24.0, step_s: float = 60.0, r_km: float = 10.0, t
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--hours", type=float, default=24.0)
-    ap.add_argument("--step-s", type=float, default=60.0)
+    ap.add_argument("--step-s", type=float, default=10.0)
     ap.add_argument("--r-km", type=float, default=10.0)
     ap.add_argument("--top", type=int, default=300, help="nodes kept in the output file")
     ap.add_argument("--workers", type=int, default=None, help="default: $WORKERS or os.cpu_count()")
@@ -55,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{'#':>3} {'name':<28} {'type':<12} {'degree':>6} {'score':>7}")
     for nd in payload["nodes"][:15]:
         print(f"{nd['rank']:>3} {nd['name'][:28]:<28} {nd['type']:<12} {nd['degree']:>6} {nd['score']:>7.4f}")
+    for ty, lst in payload["top_by_type"].items():
+        print(f"top {ty}: " + "; ".join(f"{x['name'][:22]} (deg {x['degree']})" for x in lst[:3]))
     print("timings (s): " + ", ".join(f"{k}={v:.2f}" for k, v in payload["timings"].items()))
     print(f"Wrote {path}")
     return 0
