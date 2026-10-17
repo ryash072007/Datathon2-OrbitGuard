@@ -20,6 +20,7 @@ class Brief:
 
 
 def make_brief_from_facts(facts: dict, backend: Backend | str | None = None) -> Brief:
+    facts = {k: v for k, v in facts.items() if k != "burn_table"}  # lookup data, not narrative facts
     brief = _generate(facts, backend)
     _audit(facts, brief)
     return brief

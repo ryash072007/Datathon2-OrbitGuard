@@ -67,14 +67,14 @@ def test_rejected_burn_reports_why(cached):
 
 def test_uncached_burn_is_stated_not_invented(cached):
     r = agent.ask("what about a +N burn of 0.01 m/s?", 25544)
-    assert "not among the cached" in r["answer"] and r["grounded"]
+    assert "not among the screened candidates" in r["answer"] and r["grounded"]
 
 
 def test_ask_is_audited(cached):
     from orbitguard.audit.log import tail, verify_log
     agent.ask("what if I burn one orbit later?", 25544)
     rec = tail(1)[0]
-    assert rec["kind"] == "brief" and rec["payload"]["type"] == "ask" and rec["payload"]["tools"] == ["lookup_burn"]
+    assert rec["kind"] == "ask" and rec["payload"]["tools"] == ["lookup_burn"]
     assert len(rec["payload"]["answer_sha256"]) == 64 and verify_log()[0]
 
 
@@ -168,3 +168,33 @@ def test_api_ask_validates_input(client, payload):
 
 def test_api_ask_without_analysis_is_not_ready(client):
     assert client.post("/api/live/ask", json={"question": "hi", "norad": 99999}).status_code == 503
+
+
+def test_full_burn_table_is_searchable_but_not_a_brief_fact(cached, facts):
+    from orbitguard.brief.brief import make_brief_from_facts
+    extra = {"burn_id": "+N_0.01_1P", "direction": "+N", "dv_mps": 0.01, "lead_periods": 1.0, "miss_km_threat": 61.83,
+             "new_conjunctions": 0, "feasible": False, "threat_pc_worst": 1e-7, "worst_pc": 1e-7,
+             "worst_other_norad": None, "accepted": False}
+    facts["burn_table"] = [extra]
+    (cached / "out" / "facts_25544.json").write_text(json.dumps(facts), encoding="utf-8")
+    r = agent.ask("what about a +N burn of 0.01 m/s?", 25544)
+    assert "+N_0.01_1P" in r["answer"] and "does not meet" in r["answer"] and r["grounded"]
+    # the table must not widen the brief's grounding set
+    from orbitguard.brief.grounding import check_grounding
+    assert check_grounding("The miss is 61.83 km.", {k: v for k, v in facts.items() if k != "burn_table"}) == ["61.83"]
+    assert make_brief_from_facts(facts).grounded
+
+
+def test_collect_facts_burn_table_columns():
+    import pandas as pd
+    from orbitguard.brief.facts import TABLE_COLUMNS, burn_table
+    df = pd.DataFrame([{c: 1 for c in TABLE_COLUMNS}] * 3)
+    assert len(burn_table(df)) == 3 and set(burn_table(df)[0]) == set(TABLE_COLUMNS)
+
+
+def test_old_chain_with_brief_typed_asks_still_verifies(cached):
+    from orbitguard.audit.log import KINDS, log_event, verify_log
+    assert "ask" in KINDS
+    log_event("brief", {"type": "ask", "question": "old style"})
+    agent.ask("what is going on?", 25544)
+    assert verify_log() == (True, None)

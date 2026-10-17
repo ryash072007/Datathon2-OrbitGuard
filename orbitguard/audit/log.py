@@ -11,8 +11,9 @@ from pathlib import Path
 DEFAULT_PATH = Path(os.environ.get("AUDIT_LOG")
                     or Path(__file__).resolve().parents[2] / "artifacts" / "audit" / "decisions.jsonl")
 # decision: ESA decision layer; forecast: replayed CDM update; screen: catalogue screening;
-# brief: generated operator brief; operator: the human's accept / reject / defer.
-KINDS = ("decision", "brief", "screen", "forecast", "operator")
+# brief: generated operator brief; operator: the human's accept / reject / defer; ask: an "Ask OrbitGuard" Q&A.
+# Verification does not look at kinds, so chains written before "ask" existed still verify.
+KINDS = ("decision", "brief", "screen", "forecast", "operator", "ask")
 MAX_PAYLOAD_CHARS = 8000
 GENESIS = "0" * 64
 _LOCK = threading.Lock()

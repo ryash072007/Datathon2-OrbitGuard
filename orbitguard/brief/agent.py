@@ -68,7 +68,7 @@ def _burn_rows(facts: dict) -> list[dict]:
     """Every screened burn row held in the cache: the shortlist plus the policy picks, de-duplicated."""
     burns = facts.get("burns", {})
     rows: dict[str, dict] = {}
-    for r in burns.get("top", []):
+    for r in facts.get("burn_table") or burns.get("top", []):
         rows[r["burn_id"]] = r
     for key in ("orbitguard", "pair_only"):
         r = (burns.get("policies") or {}).get(key)
@@ -152,9 +152,9 @@ def lookup_burn(ctx: Context, direction: str | None = None, dv_mps: float | None
            "n_cached_candidates": len(rows), "n_screened": burns.get("n_screened"),
            "pc_threshold": burns.get("pc_threshold"), "target_km": burns.get("target_km")}
     if not hit:
-        out["note"] = ("not among the cached shortlisted candidates (the cache holds the best few of the screened "
-                       "burns, not the whole table); rerun the live analysis to screen it")
-        out["cached_burn_ids"] = [r["burn_id"] for r in rows]
+        out["note"] = ("not among the screened candidates cached for this event (the grid is 6 directions x 6 delta-v x "
+                       "4 lead times, minus burns that start before now); rerun the live analysis to refresh")
+        out["cached_burn_ids"] = [r["burn_id"] for r in rows][:10]
     return out
 
 
@@ -503,8 +503,7 @@ def ask(question: str, norad: int | None = None, backend=None) -> dict:
               "grounded": grounded, "guardian": guardian, "fallback_reason": reason,
               "latency_ms": round((time.perf_counter() - t0) * 1000, 1)}
     from orbitguard.live import _audit
-    # No dedicated "ask" kind exists in the audit chain; asks are filed under "brief" with payload type "ask".
-    _audit("brief", {"type": "ask", "norad": ctx.norad, "question": question, "backend": used,
+    _audit("ask", {"norad": ctx.norad, "question": question, "backend": used,
                      "tools": [c["tool"] for c in calls], "grounded": grounded,
                      "guardian_flagged": guardian.get("flagged"), "fallback_reason": reason,
                      "answer_sha256": _sha(answer)})

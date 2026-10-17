@@ -66,6 +66,16 @@ def network_facts(primary_norad: int, threat_norad: int) -> dict | None:
             "n_objects": net["summary"]["n_objects"], "primary": one(primary_norad), "threat": one(threat_norad)}
 
 
+TABLE_COLUMNS = ("burn_id", "direction", "dv_mps", "lead_periods", "miss_km_threat", "new_conjunctions", "feasible",
+                 "threat_pc_worst", "worst_pc", "worst_other_norad", "accepted")
+
+
+def burn_table(bdf) -> list[dict]:
+    """Every screened candidate, compact columns only. For the Ask agent's lookups; never shown to the brief LLM
+    and excluded from the grounding guard's fact numbers (see brief.make_brief_from_facts)."""
+    return [{c: getattr(r, c) for c in TABLE_COLUMNS} for r in bdf.itertuples()]
+
+
 def decision_facts(cdm_event: int) -> dict:
     """Phase 2 decision on a historical ESA test event. Never mixed up with the live conjunction."""
     import pandas as pd
@@ -145,6 +155,7 @@ def collect_facts(primary_norad: int, threat_norad: int | None = None, cdm_event
                   "n_feasible": int(bdf["feasible"].sum()), "n_accepted": int(bdf["accepted"].sum()),
                   "pc_threshold": ctx.pc_threshold, "n_objects_screened": len(ctx.tles), "top": top,
                   "policies": df.attrs["policies"]},
+        "burn_table": burn_table(bdf),
         "consequence": cons,
         "network": network_facts(primary.norad, threat.norad),
         "timings_s": tim,
