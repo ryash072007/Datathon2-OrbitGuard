@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="scene.css">
+<style>
+  #part1 { position: absolute; inset: 0; transition: opacity .7s ease; }
+  .copy { position: absolute; left: 1080px; top: 170px; width: 720px; }
+  .copy h2 { font-size: 64px; font-weight: 500; margin: 0 0 56px; line-height: 1.1; letter-spacing: -0.01em; }
+  .stat { margin-bottom: 44px; }
+  .stat .big { font-size: 76px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat .label { font-size: 26px; color: var(--ink-2); margin-top: 10px; }
+  .stat .src { font-size: 18px; color: var(--muted); margin-top: 6px; }
+  .ticker { position: absolute; left: 1080px; top: 800px; width: 720px; height: 150px; overflow: hidden; mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+  .ticker .rows { font-family: 'IBM Plex Mono', monospace; font-size: 19px; color: var(--muted); line-height: 1.75; animation: up 9s linear infinite; }
+  .ticker .rows span { color: var(--b); }
+  @keyframes up { to { transform: translateY(-50%); } }
+  .collision .big { color: var(--b); }
+  #part2 { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; }
+  #part2.in { opacity: 1; }
+  #part2 h2 { position: absolute; left: 140px; top: 110px; font-size: 60px; font-weight: 500; margin: 0; max-width: 1400px; line-height: 1.15; }
+  #part2 h2 em { font-style: normal; color: var(--bad); }
+  svg text { font-family: 'IBM Plex Sans'; }
+</style></head>
+<body>
+<div id="part1">
+  <canvas id="earth" width="1920" height="1080"></canvas>
+  <div class="copy">
+    <h2 class="r" id="h">Low Earth orbit is getting crowded.</h2>
+    <div class="stat r" id="s1"><div class="big">Tens of thousands</div><div class="label">of objects tracked in orbit, and a constant stream of close-approach alerts</div></div>
+    <div class="stat collision r" id="s2"><div class="big"><span id="frag">0</span>+</div><div class="label">trackable fragments from one collision: Iridium 33 and Cosmos 2251, 2009</div></div>
+  </div>
+  <div class="ticker r" id="ticker"><div class="rows" id="rows"></div></div>
+</div>
+<div id="part2">
+  <h2 id="h2">A dodge changes the orbit, <span class="r" id="h2b" style="display:inline-block">and the new orbit can lead <em>straight into something else.</em></span></h2>
+  <svg width="1920" height="1080" viewBox="0 0 1920 1080">
+    <defs><marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a93a0"/></marker></defs>
+    <!-- Original path of A (dashed) heading into B's crossing -->
+    <path id="aOld" d="M 160 640 L 1760 640" stroke="#8a93a0" stroke-width="2" stroke-dasharray="8 10" fill="none" opacity=".55"/>
+    <path id="bPath" d="M 1180 250 L 640 1000" stroke="#e2672f" stroke-width="2.5" fill="none" opacity=".5"/>
+    <path id="cPath" d="M 1210 1020 L 1717 330" stroke="#22a87a" stroke-width="2.5" fill="none" opacity="0"/>
+    <path id="aNew" d="M 160 640 L 520 640 C 700 640, 820 720, 1000 760 S 1300 740, 1460 680" stroke="#3987e5" stroke-width="3.5" fill="none"/>
+    <g id="burn" opacity="0"><circle cx="520" cy="640" r="16" fill="none" stroke="#3987e5" stroke-width="2.5"/><text x="500" y="606" fill="#eef0f3" font-size="24" text-anchor="middle">Burn</text></g>
+    <g id="clearB" opacity="0"><line x1="905" y1="640" x2="905" y2="742" stroke="#3fae5a" stroke-width="2" stroke-dasharray="4 5"/><text x="930" y="700" fill="#3fae5a" font-size="26" font-weight="500">Clear of B</text></g>
+    <g id="risk" opacity="0"><circle id="ring" cx="1460" cy="680" r="20" fill="none" stroke="#e5534b" stroke-width="3"/><text x="1500" y="640" fill="#e5534b" font-size="30" font-weight="600">New collision risk with C</text></g>
+    <circle id="dotA" r="11" fill="#3987e5"/><text id="lblA" fill="#eef0f3" font-size="28" font-weight="600">A</text>
+    <circle id="dotB" r="10" fill="#e2672f"/><text id="lblB" fill="#eef0f3" font-size="28" font-weight="600">B</text>
+    <circle id="dotC" r="10" fill="#22a87a" opacity="0"/><text id="lblC" fill="#eef0f3" font-size="28" font-weight="600" opacity="0">C</text>
+  </svg>
+</div>
+<script src="../out/lib.js"></script>
+<script>
+  const {earth, cues, countUp} = OG;
+  const r = Math.PI / 180;
+  const scene = earth(document.getElementById('earth'), {cx: 520, cy: 560, radius: 340, rotation: -60, spin: 7, tilt: -18, swarm: 90, orbits: [
+    {inc: 86 * r, raan: 120 * r, alt: 0.11, color: 'rgba(226,103,47,0)', sats: []},
+  ]});
+  // Illustrative alert ticker (not real messages): object pairs and probabilities scroll past.
+  const rows = [];
+  for (let i = 0; i < 16; i++) {
+    const pc = (Math.random() * 9 + 1).toFixed(1), exp = 3 + Math.floor(Math.random() * 5), days = (Math.random() * 5 + 1).toFixed(1);
+    rows.push(`ALERT  close approach   Pc <span>${pc}e-${exp}</span>   TCA in ${days} d`);
+  }
+  document.getElementById('rows').innerHTML = rows.concat(rows).join('<br>');
+
+  // Part 2 animation: move dots along the paths.
+  const $ = id => document.getElementById(id);
+  function along(pathEl, dot, label, from, to, ms, done, dx = -9, dy = -22) {
+    const len = pathEl.getTotalLength(), t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      const p = pathEl.getPointAtLength(len * (from + (to - from) * e));
+      dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+      if (label) {label.setAttribute('x', p.x + dx); label.setAttribute('y', p.y + dy);}
+      if (k < 1) requestAnimationFrame(step); else done && done();
+    };
+    requestAnimationFrame(step);
+  }
+  const draw = (el, ms) => {const len = el.getTotalLength(); el.style.strokeDasharray = len; el.style.strokeDashoffset = len; el.getBoundingClientRect(); el.style.transition = `stroke-dashoffset ${ms}ms cubic-bezier(.4,.1,.2,1)`; el.style.strokeDashoffset = 0;};
+  const show = (id, ms = 500) => {const el = $(id); el.style.transition = `opacity ${ms}ms`; el.setAttribute('opacity', 1); el.style.opacity = 1;};
+  // Initial positions for part 2.
+  $('dotA').setAttribute('cx', 160); $('dotA').setAttribute('cy', 640); $('lblA').setAttribute('x', 151); $('lblA').setAttribute('y', 618);
+  $('aNew').style.strokeDasharray = 4000; $('aNew').style.strokeDashoffset = 4000;
+
+  window.start = () => {};
+  cues({
+    0: () => {$('h').classList.add('in'); let n = 90; const grow = setInterval(() => {n += 40; scene.setSwarm(n); if (n > 700) clearInterval(grow);}, 260);},
+    1: () => {$('s1').classList.add('in'); setTimeout(() => $('ticker').classList.add('in'), 500);},
+    2: () => {$('s2').classList.add('in'); scene.state.spin = 2.5; scene.burstFront(240); setTimeout(() => countUp($('frag'), 2000, 1600), 300);},
+    3: () => {
+      $('part1').style.opacity = 0; $('part2').classList.add('in');
+      along($('bPath'), $('dotB'), $('lblB'), 0, 0.75, 3800);
+      setTimeout(() => {draw($('aNew'), 3200); along($('aNew'), $('dotA'), $('lblA'), 0, 0.62, 3200, () => show('clearB'));}, 300);
+      setTimeout(() => show('burn', 300), 900);
+    },
+    4: () => {
+      $('h2b').classList.add('in');
+      show('cPath', 600); show('dotC', 400); show('lblC', 400);
+      along($("cPath"), $("dotC"), $("lblC"), 0, 0.493, 2600, null, 20, 44);
+      setTimeout(() => along($('aNew'), $('dotA'), $('lblA'), 0.62, 1, 2300, () => {show('risk', 200); const ring = $('ring'); let t0 = performance.now(); const pulse = now => {const k = ((now - t0) / 900) % 1; ring.setAttribute('r', 20 + k * 40); ring.setAttribute('opacity', 1 - k); requestAnimationFrame(pulse);}; requestAnimationFrame(pulse);}), 300);
+    },
+  });
+</script>
+</body></html>

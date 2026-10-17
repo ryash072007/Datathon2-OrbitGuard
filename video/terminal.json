@@ -1,0 +1,19 @@
+[
+  ["uname -m", ["<span class=\"hi\">s390x</span>"]],
+  ["lscpu | grep 'Machine type'", ["Machine type:                            <span class=\"hi\">9175</span>"]],
+  ["nproc", ["<span class=\"hi\">3</span>"]],
+  ["systemctl is-active orbitguard", ["<span class=\"ok\">active</span>"]],
+  ["cat artifacts/pipeline/status.log", [
+    "[2026-10-17T08:47:02Z] START train",
+    "[2026-10-17T08:48:54Z] <span class=\"ok\">OK</span> train 112s",
+    "[2026-10-17T08:48:54Z] START evaluate",
+    "[2026-10-17T08:49:01Z] <span class=\"ok\">OK</span> evaluate 7s",
+    "[2026-10-17T08:49:01Z] START validate-physics",
+    "[2026-10-17T08:49:01Z] <span class=\"ok\">OK</span> validate-physics 0s",
+    "[2026-10-17T08:49:01Z] START benchmark-planner",
+    "[2026-10-17T08:51:14Z] <span class=\"ok\">OK</span> benchmark-planner 133s",
+    "[2026-10-17T08:51:14Z] START benchmark-runtime",
+    "[2026-10-17T08:52:38Z] <span class=\"ok\">OK</span> benchmark-runtime 84s",
+    "[2026-10-17T08:52:38Z] <span class=\"ok\">DONE</span>"
+  ]]
+]

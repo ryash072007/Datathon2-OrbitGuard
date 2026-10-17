@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="scene.css">
+<style>
+  header { position: absolute; left: 140px; top: 110px; }
+  header h2 { font-size: 64px; font-weight: 500; margin: 14px 0 0; letter-spacing: -0.01em; }
+  .cards { position: absolute; left: 140px; right: 140px; top: 330px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 70px; }
+  .card { background: rgba(255,255,255,0.035); border: 1px solid var(--line); border-radius: 14px; padding: 36px 36px 40px; height: 520px; display: flex; flex-direction: column; }
+  .card .n { font-family: 'IBM Plex Mono'; color: var(--muted); font-size: 20px; }
+  .card h3 { font-size: 44px; font-weight: 500; margin: 8px 0 14px; }
+  .card p { font-size: 25px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+  .viz { margin-top: auto; height: 210px; position: relative; }
+  .arrow { position: absolute; top: 590px; width: 70px; height: 2px; background: var(--muted); transform-origin: left; transform: scaleX(0); transition: transform .6s ease; }
+  .arrow.in { transform: none; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 10px; }
+  .cell { aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,0.1); transition: background .25s, transform .25s; }
+  .cell.ok { background: var(--good); } .cell.no { background: var(--bad); }
+  .cell.pick { background: var(--a); transform: scale(1.5); box-shadow: 0 0 0 4px rgba(57,135,229,.35); }
+  .grid-labels { display: flex; justify-content: space-between; font-size: 18px; color: var(--muted); margin-top: 14px; }
+  .pick-label { font-size: 30px; font-weight: 500; margin-top: 18px; opacity: 0; transition: opacity .6s; }
+  .pick-label.in { opacity: 1; }
+  .footer { position: absolute; left: 140px; bottom: 90px; font-size: 26px; color: var(--ink-2); }
+  .footer b { color: var(--ink); font-weight: 500; }
+  polyline { fill: none; }
+</style></head>
+<body>
+<header class="r" id="h"><div class="kicker">The solution</div><h2>Decision support for satellite operators</h2></header>
+<div class="cards">
+  <div class="card r" id="c1"><span class="n">01</span><h3>Forecast</h3><p>How risky will this encounter become? Learned from real ESA alert data, using only what is known 48 hours ahead.</p>
+    <div class="viz"><svg width="100%" height="210" viewBox="0 0 440 210"><line x1="0" y1="170" x2="440" y2="170" stroke="#8a93a0" stroke-dasharray="5 6"/><text x="0" y="198" fill="#8a93a0" font-size="16" font-family="IBM Plex Sans">high-risk threshold</text><polyline id="pl" points="10,150 90,128 170,132 250,96 330,70 420,40" stroke="#3987e5" stroke-width="4"/><circle id="pt" cx="420" cy="40" r="8" fill="#3987e5" opacity="0"/></svg></div></div>
+  <div class="card r" id="c2"><span class="n">02</span><h3>Screen</h3><p>37 candidate burns, checked against every nearby object at three levels of position uncertainty.</p>
+    <div class="viz"><div class="grid" id="grid"></div><div class="grid-labels"><span><span style="color:var(--good)">&#9679;</span> safe for every object</span><span><span style="color:var(--bad)">&#9679;</span> rejected</span></div></div></div>
+  <div class="card r" id="c3"><span class="n">03</span><h3>Recommend</h3><p>The smallest burn that keeps every encounter safe, explained in plain language. Or a clear "no safe option".</p>
+    <div class="viz"><div class="pick-label" id="pick">+0.05 m/s at T+300 s<br><span style="color:var(--ink-2);font-size:22px;font-weight:400">Selected: the smallest safe burn</span></div></div></div>
+</div>
+<div class="arrow" id="a1" style="left: 640px"></div><div class="arrow" id="a2" style="left: 1210px"></div>
+<div class="footer r" id="foot">Every calculation runs on <b>IBM LinuxONE</b> (s390x)</div>
+<script src="../out/lib.js"></script>
+<script>
+  const {cues} = OG;
+  const $ = id => document.getElementById(id);
+  // Accept/reject flags of the 37 candidates come from the real LinuxONE screening run (injected by the recorder).
+  const candidates = window.CANDIDATES || Array.from({length: 37}, (_, i) => ({accepted: i % 3 !== 0, id: String(i)}));
+  const grid = $('grid');
+  grid.innerHTML = candidates.map(() => '<div class="cell"></div>').join('');
+  const pl = $('pl'); const len = pl.getTotalLength(); pl.style.strokeDasharray = len; pl.style.strokeDashoffset = len;
+  window.start = () => {};
+  cues({
+    0: () => $('h').classList.add('in'),
+    1: () => {$('c1').classList.add('in'); setTimeout(() => {pl.style.transition = 'stroke-dashoffset 1.6s ease'; pl.style.strokeDashoffset = 0;}, 500); setTimeout(() => $('pt').setAttribute('opacity', 1), 2100);},
+    2: () => {$('a1').classList.add('in'); $('c2').classList.add('in'); [...grid.children].forEach((cell, i) => setTimeout(() => cell.classList.add(candidates[i].accepted ? 'ok' : 'no'), 600 + i * 70));},
+    3: () => {$('a2').classList.add('in'); $('c3').classList.add('in');
+      const pick = candidates.findIndex(c => c.chosen);
+      setTimeout(() => {if (pick >= 0) grid.children[pick].classList.add('pick'); $('pick').classList.add('in');}, 900);
+      setTimeout(() => $('foot').classList.add('in'), 2200);},
+  });
+</script>
+</body></html>

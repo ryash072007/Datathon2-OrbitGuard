@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="scene.css">
+<style>
+  .term { position: absolute; left: 120px; top: 150px; width: 1000px; height: 780px; background: #05070a; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+  .bar { height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 17px; }
+  .bar i { width: 12px; height: 12px; border-radius: 50%; background: #2a2f37; display: inline-block; }
+  .bar span { margin-left: 12px; }
+  pre { margin: 0; padding: 26px 30px; font-family: 'IBM Plex Mono', monospace; font-size: 22px; line-height: 1.6; color: #c9d1db; white-space: pre-wrap; }
+  pre .p { color: #7fb0f0; } pre .ok { color: #5cc177; } pre .hi { color: #f1f3f6; font-weight: 500; }
+  .caret { display: inline-block; width: 11px; height: 24px; background: #c9d1db; vertical-align: -4px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .side { position: absolute; left: 1200px; top: 190px; width: 620px; }
+  .side h2 { font-size: 72px; font-weight: 500; margin: 12px 0 40px; letter-spacing: -0.01em; }
+  .chips { display: flex; flex-direction: column; gap: 18px; }
+  .chip { display: flex; justify-content: space-between; align-items: baseline; padding: 18px 24px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.035); font-size: 26px; }
+  .chip span { color: var(--ink-2); font-size: 22px; }
+  .chip b { font-weight: 500; font-family: 'IBM Plex Mono', monospace; }
+</style></head>
+<body>
+<div class="term r scale" id="term"><div class="bar"><i></i><i></i><i></i><span>linux1@orbitguard-linuxone: ~/orbitguard</span></div><pre id="out"></pre></div>
+<div class="side">
+  <div class="kicker r" id="k">Where it runs</div><h2 class="r" id="t">IBM LinuxONE</h2>
+  <div class="chips">
+    <div class="chip r right" id="ch1"><span>Architecture</span><b>s390x</b></div>
+    <div class="chip r right" id="ch2"><span>IBM Z machine type</span><b>9175</b></div>
+    <div class="chip r right" id="ch3"><span>Virtual CPUs</span><b>3</b></div>
+    <div class="chip r right" id="ch4"><span>Model training (16 configs × 3 folds)</span><b>112 s</b></div>
+    <div class="chip r right" id="ch5"><span>OrbitGuard web service</span><b>active</b></div>
+  </div>
+</div>
+<script src="../out/lib.js"></script>
+<script>
+  const {cues} = OG;
+  const $ = id => document.getElementById(id);
+  // Real outputs captured from the LinuxONE VM on 17 Oct 2026 (see video/README.md).
+  const blocks = window.TERMINAL || [];
+  const out = $('out');
+  let html = '';
+  const render = caret => {out.innerHTML = html + (caret ? '<span class="caret"></span>' : '');};
+  async function type(cmd, result) {
+    html += '<span class="p">$ </span>';
+    for (const ch of cmd) {html += ch.replace('<', '&lt;'); render(true); await new Promise(r => setTimeout(r, 26));}
+    html += '\n'; render(true);
+    await new Promise(r => setTimeout(r, 160));
+    for (const line of result) {html += line + '\n'; render(true); await new Promise(r => setTimeout(r, 70));}
+  }
+  async function play(list) {for (const [cmd, result] of list) await type(cmd, result); render(true);}
+  window.start = () => {$('term').classList.add('in'); $('k').classList.add('in'); $('t').classList.add('in'); play(blocks.slice(0, 4));};
+  cues({
+    0: () => ['ch1', 'ch2', 'ch3'].forEach((id, i) => setTimeout(() => $(id).classList.add('in'), 300 + i * 450)),
+    1: () => {play(blocks.slice(4)); ['ch4', 'ch5'].forEach((id, i) => setTimeout(() => $(id).classList.add('in'), 1800 + i * 1500));},
+  });
+</script>
+</body></html>
