@@ -61,3 +61,26 @@ The IBM labs weren't available to us, so we chose the stack ourselves: **IBM Gra
 - Timing numbers for the pitch come from the VM only.
 
 - **sgp4 on s390x:** there is no s390x wheel, so pip silently installs the pure-Python fallback (`sgp4.api.accelerated == False`), which made the screener ~70x slower on the VM (939 s). The Dockerfile and `vm_setup.sh` now build the C extension with `--no-binary=sgp4` and check it.
+
+## NNPA (Telum on-chip accelerator) with TensorFlow, found on the z17 VM
+
+- Hardware: machine type 9175 (z17); `/proc/cpuinfo` features include `nnpa`, `vxe2`, `dflt`. No `--privileged` needed.
+- `ibm-zdnn-plugin` 2.3.0 is not a PluggableDevice: it installs `tensorflow/core/kernels/_z_ops.so` (links `libzdnn.so.0` in
+  `/usr/local/lib`), which TensorFlow loads by itself. It adds a Grappler "ZRemapper" that rewrites MatMul+BiasAdd+activation into
+  `_ZFusedMatMul` with `ZStickify`/`ZUnstickify` around it. `tf.config.list_physical_devices()` therefore shows only CPU, and the
+  placer log shows CPU too; do not take that as proof that the accelerator is off.
+- Switch: environment variable `NNPA_DEVICES`. `NNPA_DEVICES=0` disables the rewrite (pure CPU); unset or `1` enables it. Set it before importing TF.
+- Evidence: run with `TF_CPP_MIN_LOG_LEVEL=0 TF_CPP_MAX_VLOG_LEVEL=3` and grep `Instantiating kernel .* = _ZFusedMatMul`
+  (present with 1, absent with 0). Predictions also differ by up to 1.5e-3 (DLFLOAT16), another sign the NNPA ran. Only Keras graph
+  execution (`model.predict`) is rewritten; eager ops are not.
+- Speed-up grows with batch size (stickification overhead): 1.06x at 1k rows to 2.7x at 1M rows for a 134-256-256-128-1 MLP.
+- `torch_nnpa` 1.5.0 also works (`torch_nnpa.device()` gives `nnpa:0`, tensors and matmul live on it), but we did not use it.
+- The image's `llama_cpp_python` build includes `libggml-zdnn.so`; `n_gpu_layers=-1` made no speed difference for Granite q8_0 (about 1 tok/s).
+
+## Granite conversion gotchas (VM)
+
+- Run the converter inside the image (torch, transformers, numpy are already there). `scripts/convert_granite_bigendian.sh` no longer
+  pip-installs; it takes `gguf` from the llama.cpp checkout (`gguf-py`), downloads with `huggingface_hub`, and stubs `sentencepiece`
+  (no s390x wheel; the converter imports it before it looks for `tokenizer.model`, which Granite lacks).
+- Mount a work directory outside the repo (`-v ~/granite_work:/granite_work -e WORK=/granite_work`); HOME is read-only for `--user`.
+- Gotcha: scripts that start a `ProcessPoolExecutor` (spawn) need an `if __name__ == "__main__":` guard.

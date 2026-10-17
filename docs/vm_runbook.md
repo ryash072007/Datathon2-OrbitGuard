@@ -32,3 +32,21 @@ Keep SSH keys (`*.pem`) outside the repo directory; `vm_setup.sh` warns if one i
    | Burn options table, consequence bar chart | middle panels |
    | Super-spreaders table and network picture | lower panels |
    | Brief with backend `llamacpp` and grounded badge | brief panel |
+
+## What actually worked on the VM (z17, 3 vCPU, 8 GB; measured 17 Oct)
+
+All commands run in the `datathon2` image (host Python lacks TF/torch/llama_cpp). Shorthand:
+`D="sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e DATA_DIR=/work/data -e TLE_MAX_AGE_H=1e9 -v ~/IBM-Datathon:/work -w /work --entrypoint '' datathon2"`.
+
+- **NNPA benchmark**: `$D python -m src.nnpa.bench` (add `-e BENCH_HOST=$(hostname)` to the docker line so the JSON is named after
+  the VM and not the container id). Takes about 2 minutes. Writes `data/out/nnpa_bench_<host>.json` and `models/nnpa_mlp.keras`.
+  Result: 1.06x at 1k rows, 1.6x at 10k, 2.1x at 100k, 2.7x at 1M (about 0.41M to 1.10M rows/s); max |dprob| 0.0015.
+- **Granite big-endian**: pre-fetch (I/O only) with `PREPARE_ONLY=1`, then convert; about 8 minutes, peak RAM fine:
+  `sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e WORK=/granite_work -v ~/IBM-Datathon:/work -v ~/granite_work:/granite_work -w /work --entrypoint '' datathon2 bash scripts/convert_granite_bigendian.sh`
+  Output: `models/llm/granite-3.3-2b-instruct-q8_0-be.gguf` (2.7 GB).
+- **Brief**: `LLM_BACKEND=llamacpp LLM_MODEL_PATH=/work/models/llm/granite-3.3-2b-instruct-q8_0-be.gguf` gives
+  `backend: llamacpp | grounded: True`, but only about 1 token/s with 3 threads (511 tokens took 523 s, prompt 611 tokens).
+  `data/out/brief_granite_vm.json` holds it. Pre-generate the brief before recording the video, or lower `max_tokens`.
+- **Dashboard container**: `sudo docker run -d --name d2dash --restart unless-stopped --user $(id -u):$(id -g) -p 8080:8080 -e HOME=/tmp -e DATA_DIR=/work/data -e TLE_MAX_AGE_H=1e9 -e LLM_BACKEND=llamacpp -e LLM_MODEL_PATH=/work/models/llm/granite-3.3-2b-instruct-q8_0-be.gguf -v ~/IBM-Datathon:/work -w /work --entrypoint '' datathon2 python -m src.app.run`.
+  `curl localhost:8080/api/status` returns 200 with `machine: s390x`, `byteorder: big`. Reach it with `ssh -L 8080:localhost:8080 ...`; no firewall change.
+- Part C (llama.cpp built with zDNN) was skipped for time.
