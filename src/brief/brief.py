@@ -19,6 +19,24 @@ class Brief:
 
 
 def make_brief_from_facts(facts: dict, backend: Backend | str | None = None) -> Brief:
+    brief = _generate(facts, backend)
+    _audit(facts, brief)
+    return brief
+
+
+def _audit(facts: dict, brief: Brief) -> None:
+    try:  # logging must never break the brief
+        from src.audit.log import canonical, log_event
+        import hashlib
+        sha = lambda t: hashlib.sha256(t.encode("utf-8")).hexdigest()
+        log_event("brief", {"backend": brief.backend_used, "grounded": brief.grounded, "issues": brief.issues,
+                           "facts_sha256": sha(canonical(facts)), "brief_sha256": sha(brief.text)})
+    except Exception as exc:  # noqa: BLE001
+        import sys
+        print(f"[audit log failed: {exc}]", file=sys.stderr)
+
+
+def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
     """Generate with the selected backend; fall back to the template if it errors or is ungrounded."""
     issues: list[str] = []
     name = backend if isinstance(backend, str) else getattr(backend, "name", None)
