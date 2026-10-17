@@ -32,8 +32,10 @@ def repo_root() -> Path:
 
 
 def data_dir() -> Path:
+    """Live-catalogue working directory (TLE cache, ephemeris memmaps, outputs). Under artifacts/ so the
+    hardened systemd unit (ReadWritePaths=artifacts) can write it; override with DATA_DIR."""
     env = os.environ.get("DATA_DIR")
-    return Path(env) if env else repo_root() / "data"
+    return Path(env) if env else repo_root() / "artifacts" / "live"
 
 
 @dataclass

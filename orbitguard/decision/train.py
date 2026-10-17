@@ -13,8 +13,9 @@ from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostin
 from orbitguard.decision.features import CAT_COLS, build_table
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data" / "raw" / "cac"
-MODEL_PATH = ROOT / "models" / "risk_hgb.joblib"
+ML_DIR = ROOT / "artifacts" / "ml"  # shared with orbitguard.ml: `orbitguard fetch-data` writes the ESA CSVs here
+DATA = ML_DIR / "data"
+MODEL_PATH = ML_DIR / "risk_hgb.joblib"
 HIGH_RISK = -6.0
 HR_WEIGHT = 20.0
 RANDOM_STATE = 42

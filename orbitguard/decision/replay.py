@@ -19,7 +19,9 @@ ACTIONS = ("MONITOR", "WAIT", "ACT")
 def _load(split: str) -> tuple[pd.DataFrame, pd.Series]:
     if split == "test":
         cdms = pd.read_csv(DATA / "test_data.csv")
-        true = pd.read_csv(DATA / "test_data_private.csv").set_index("event_id")["true_risk"]
+        from orbitguard.decision.decision import DECISION_PATH
+        from orbitguard.decision.evaluate import released_test_labels
+        true = released_test_labels(DECISION_PATH)
     elif split == "train":
         cdms = pd.read_csv(DATA / "train_data.csv")
         true = usable_labels(cdms)

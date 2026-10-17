@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_PATH = Path("data/audit/decisions.jsonl")
-KINDS = ("decision", "brief", "screen")
+DEFAULT_PATH = Path(os.environ.get("AUDIT_LOG")
+                    or Path(__file__).resolve().parents[2] / "artifacts" / "audit" / "decisions.jsonl")
+# decision: ESA decision layer; forecast: replayed CDM update; screen: catalogue screening;
+# brief: generated operator brief; operator: the human's accept / reject / defer.
+KINDS = ("decision", "brief", "screen", "forecast", "operator")
 MAX_PAYLOAD_CHARS = 8000
 GENESIS = "0" * 64
 _LOCK = threading.Lock()
@@ -58,6 +62,11 @@ def log_event(kind: str, payload, path: str | Path | None = None) -> dict:
         with p.open("a", encoding="utf-8", newline="\n") as f:
             f.write(canonical(rec) + "\n")
     return rec
+
+
+def tail(n: int = 20, path: str | Path | None = None) -> list[dict]:
+    """The last ``n`` records, newest first."""
+    return [json.loads(ln) for ln in reversed(_read_lines(Path(path) if path else DEFAULT_PATH)[-n:])]
 
 
 def verify_log(path: str | Path | None = None) -> tuple[bool, int | None]:

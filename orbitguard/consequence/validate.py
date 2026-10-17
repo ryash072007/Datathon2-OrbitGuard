@@ -15,8 +15,8 @@ import pandas as pd
 from .breakup import ejected_mass_kg, is_catastrophic, n_fragments
 
 SATCAT_URL = "https://celestrak.org/pub/satcat.csv"
-CACHE = Path("data/raw/celestrak/satcat.csv")
-OUT_JSON = Path("data/out/validation.json")
+CACHE = Path(__file__).resolve().parents[2] / "artifacts" / "live" / "raw" / "celestrak" / "satcat.csv"
+OUT_JSON = Path(__file__).resolve().parents[2] / "artifacts" / "live" / "out" / "validation.json"
 OUT_MD = Path("docs/validation.md")
 
 # All masses approximate (public reporting; see docs/validation.md).

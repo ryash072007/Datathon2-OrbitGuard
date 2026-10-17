@@ -27,9 +27,10 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL_PATH = ROOT / "models" / "nnpa_mlp.keras"
-META_PATH = ROOT / "models" / "nnpa_mlp_meta.json"
-REAL_PATH = ROOT / "models" / "nnpa_real_features.npy"
+NNPA_DIR = ROOT / "artifacts" / "nnpa"
+MODEL_PATH = NNPA_DIR / "nnpa_mlp.keras"
+META_PATH = NNPA_DIR / "nnpa_mlp_meta.json"
+REAL_PATH = NNPA_DIR / "nnpa_real_features.npy"
 HIGH_RISK = -6.0
 SEED = 7
 SIZES = [1_000, 10_000, 100_000, 1_000_000]
@@ -47,9 +48,9 @@ def build_matrix() -> tuple[np.ndarray, np.ndarray, dict]:
     import pandas as pd
 
     from orbitguard.decision.features import build_table
-    from orbitguard.decision.train import feature_matrix, usable_labels
+    from orbitguard.decision.train import DATA, feature_matrix, usable_labels
 
-    train = pd.read_csv(data_dir() / "raw" / "cac" / "train_data.csv")
+    train = pd.read_csv(DATA / "train_data.csv")
     labels = usable_labels(train)
     tab = build_table(train[train["event_id"].isin(labels.index)], labels)
     y = (tab["target"].to_numpy() >= HIGH_RISK).astype("float32")
@@ -193,7 +194,7 @@ def main() -> None:
     if not (a.skip_train and MODEL_PATH.exists() and REAL_PATH.exists()):
         train_model(a.epochs)
     host = os.environ.get("BENCH_HOST") or socket.gethostname()  # inside docker pass -e BENCH_HOST=$(hostname)
-    out_dir = data_dir() / "out"
+    out_dir = NNPA_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     f_off, f_on = out_dir / f"nnpa_tmp_{host}_off.json", out_dir / f"nnpa_tmp_{host}_on.json"
     off = run_child("off", f_off, sizes)

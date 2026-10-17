@@ -29,9 +29,15 @@ def metrics(true: np.ndarray, pred: np.ndarray) -> dict:
             "n_high_risk": int(hr.sum()), "n_pred_high_risk": int(pr.sum())}
 
 
+def released_test_labels(frozen: Path) -> pd.Series:
+    """Final risk per ESA test event from the sealed label member, opened only once ``frozen`` exists."""
+    from orbitguard.ml.data import read_labels_after_freeze
+    return read_labels_after_freeze(ROOT, frozen).set_index("event_id")["true_risk"]
+
+
 def evaluate(model_path: Path) -> dict:
     test = pd.read_csv(DATA / "test_data.csv")
-    priv = pd.read_csv(DATA / "test_data_private.csv").set_index("event_id")["true_risk"]
+    priv = released_test_labels(model_path)
     tab = build_table(test, priv)
     art = joblib.load(model_path)
     true = tab["target"].to_numpy()
@@ -42,7 +48,7 @@ def evaluate(model_path: Path) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", type=Path, default=MODEL_PATH)
-    ap.add_argument("--out", type=Path, default=ROOT / "models" / "risk_metrics.json")
+    ap.add_argument("--out", type=Path, default=ROOT / "artifacts" / "ml" / "risk_metrics.json")
     a = ap.parse_args()
     res = evaluate(a.model)
     print(f"{'':8}" + "".join(f"{k:>17}" for k in res["naive"]))

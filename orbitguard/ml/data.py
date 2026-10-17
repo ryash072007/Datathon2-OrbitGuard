@@ -53,8 +53,17 @@ def fetch(root):
     write_json(base/'provenance.json',report); return report
 
 def read_labels(root):
-    base,data=paths(root)
+    base,_=paths(root)
     if not (base/'model.joblib').exists() or not (base/'model_metadata.json').exists(): raise ValueError('Freeze the model before opening final test labels')
+    return unseal_labels(root)
+
+def read_labels_after_freeze(root,frozen):
+    # Same sealed member, for other frozen artifacts (the decision layer): refuse until the artifact exists.
+    if not Path(frozen).exists(): raise ValueError(f'Freeze {Path(frozen).name} before opening final test labels')
+    return unseal_labels(root)
+
+def unseal_labels(root):
+    _,data=paths(root)
     import io
     raw=(data/'test_labels_member.bin').read_bytes()
     h=struct.unpack_from('<4s5H3I2H',raw,0)

@@ -52,6 +52,11 @@ def _screen_worker(root: str, scenario_id: str, overrides: dict) -> dict:
         return json_safe(PhysicsService(Path(root)).screen(scenario_id, overrides))
 
 
+def _audit(kind: str, payload: dict) -> None:
+    from orbitguard.live import _audit as audit
+    audit(kind, payload)
+
+
 def available_cpus() -> int:
     count = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
     quota = Path("/sys/fs/cgroup/cpu.max")
@@ -117,6 +122,11 @@ class JobStore:
                 LOG.exception("Screening job %s failed", job_id)
                 job.update(status="failed", error={"code": "screening_failed", "message": str(exc)})
             payload = self._public(job)
+            if job["status"] == "completed":
+                rec = job["result"].get("recommendation") or {}
+                _audit("screen", {"source": "synthetic", "job_id": job_id, "scenario_id": job["scenario_id"],
+                                  "status": job["result"].get("status"), "candidate_id": rec.get("candidate_id"),
+                                  "delta_v_mps": rec.get("delta_v_mps"), "worst_pc": rec.get("worst_pc")})
             try:
                 directory = self.root / "artifacts" / "runs"
                 directory.mkdir(parents=True, exist_ok=True)
@@ -166,6 +176,8 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
     jobs = JobStore(root, job_executor, screen_worker)
     app.extensions["orbitguard_jobs"] = jobs
     atexit.register(jobs.shutdown)
+    from orbitguard.live import create_blueprint
+    app.register_blueprint(create_blueprint())
 
     def response(data, status=200):
         return jsonify(json_safe(data)), status
@@ -249,7 +261,14 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
         event_id = payload.get("event_id")
         if not isinstance(event_id, str) or not event_id or len(event_id) > 128:
             raise ValueError("event_id must be a nonempty string of at most 128 characters")
-        return response(ml_service.replay_update(event_id, payload.get("message_count")))
+        update = ml_service.replay_update(event_id, payload.get("message_count"))
+        forecast = update.get("forecast") or {}
+        _audit("forecast", {"source": "historical_replay", "update_id": update.get("update_id"), "event_id": event_id,
+                            "message_count": update.get("message_count"), "alert": update.get("alert"),
+                            "forecast_log10_pc": forecast.get("forecast_log10_pc"),
+                            "decision_action": (forecast.get("decision") or {}).get("action"),
+                            "model_version": forecast.get("model_version")})
+        return response(update)
 
     @app.post("/api/forecast")
     def forecast():

@@ -73,3 +73,23 @@ def test_saved_model_predict_risk():
     ev = df[df["event_id"] == df[df["time_to_tca"] >= 2]["event_id"].iloc[0]]
     d = D.decide(ev)
     assert predict_risk(ev) == d.predicted_risk and d.action in ("ACT", "WAIT", "MONITOR")
+
+
+def test_forecast_service_reports_decision_layer(tmp_path):
+    """The validated forecast service carries Act/Wait/Monitor beside its forecast once decision.joblib exists."""
+    import joblib
+
+    from orbitguard.ml.service import MLService
+    df, labels = _synthetic()
+    tab = build_table(df, labels)
+    art = {"chosen": "C", "rules": D.fit_rules(tab, D._folds(tab)), "gate": {"t_hi": 0.6, "t_lo": 0.0, "v_hi": -5.0},
+           "classifier": D.fit_classifier(tab), "interval": D.fit_interval(tab), "t_act": 0.5, "t_wait": 0.25}
+    svc = MLService(tmp_path)
+    rows = df[df["event_id"] == 0]
+    assert svc._decision_layer(rows)["status"] == "missing"
+    (tmp_path / "artifacts" / "ml").mkdir(parents=True)
+    joblib.dump(art, tmp_path / "artifacts" / "ml" / "decision.joblib")
+    out = svc._decision_layer(rows)
+    assert out["status"] == "ready" and out["action"] in {"ACT", "WAIT", "MONITOR"}
+    assert out["interval_log10_pc"][0] <= out["predicted_log10_pc"] <= out["interval_log10_pc"][1]
+    assert svc._decision_layer(rows[["event_id", "time_to_tca", "risk"]])["status"] == "unavailable"

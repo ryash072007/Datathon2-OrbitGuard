@@ -37,7 +37,7 @@ def test_replay_empty_raises():
         R.replay_cdms(_cdms().assign(time_to_tca=1.0), None, art={})
 
 
-@pytest.mark.skipif(not (R.DATA / "test_data.csv").exists() or not (R.DATA.parents[2] / "models" / "decision.joblib").exists(),
+@pytest.mark.skipif(not (R.DATA / "test_data.csv").exists() or not (R.DATA.parent / "decision.joblib").exists(),
                     reason="ESA data or decision model not available")
 def test_replay_real_event():
     steps = R.replay(276)

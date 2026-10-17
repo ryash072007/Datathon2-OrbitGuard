@@ -1,7 +1,8 @@
 """Decision layer on top of the naive latest-CDM risk: learned rules (A), calibrated gate (B), both (C).
 
-CLI: python -m orbitguard.decision.decision fit | eval
-Parameters are learned by 5-fold GroupKFold CV on train only; the test set is used once in `eval`.
+CLI: python -m orbitguard.decision.decision fit | eval   (or `orbitguard decision-fit` / `orbitguard decision-eval`)
+Parameters are learned by 5-fold GroupKFold CV on train only. `eval` opens the sealed ESA test labels only after
+the artefact is frozen, records its SHA256 before and after, and writes artifacts/ml/decision_evidence.json.
 """
 from __future__ import annotations
 
@@ -23,9 +24,10 @@ from sklearn.preprocessing import StandardScaler
 
 from orbitguard.decision.evaluate import metrics
 from orbitguard.decision.features import MIN_TTCA_DAYS, build_table
-from orbitguard.decision.train import DATA, HIGH_RISK, RANDOM_STATE, ROOT, feature_matrix, usable_labels
+from orbitguard.decision.train import DATA, HIGH_RISK, ML_DIR, RANDOM_STATE, feature_matrix, usable_labels
 
-DECISION_PATH = ROOT / "models" / "decision.joblib"
+DECISION_PATH = ML_DIR / "decision.joblib"
+EVIDENCE_PATH = ML_DIR / "decision_evidence.json"
 LOW = -6.001
 FLOOR = -20.0
 OBJ_TYPES = ["DEBRIS", "PAYLOAD", "ROCKET BODY", "TBA", "UNKNOWN"]
@@ -367,13 +369,31 @@ def cmd_fit(out: Path) -> None:
     print(f"saved {out}")
 
 
-def cmd_eval(path: Path) -> None:
+def actions_table(art: dict, tab: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Vectorised ``decide``: (action per event, predicted risk, P(high)) for a feature table."""
+    pred, p = predict_all(art, tab)
+    act = np.where((pred >= HIGH_RISK) | (p >= art["t_act"]), "ACT", np.where(p >= art["t_wait"], "WAIT", "MONITOR"))
+    return act, pred, p
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def cmd_eval(path: Path, evidence_path: Path = EVIDENCE_PATH) -> dict:
+    import json
+    import platform
+    import time
+
+    from orbitguard.decision.evaluate import released_test_labels
+    sha_before = _sha256(path)
     art = joblib.load(path)
     test = pd.read_csv(DATA / "test_data.csv")
-    priv = pd.read_csv(DATA / "test_data_private.csv").set_index("event_id")["true_risk"]
+    priv = released_test_labels(path)  # first label access; the artefact above is already frozen
     tab = build_table(test, priv)
     true = tab["target"].to_numpy()
-    pred, p = predict_all(art, tab)
+    act, pred, p = actions_table(art, tab)
     res = {"naive": metrics(true, tab["naive_risk"].to_numpy(dtype=float)), art["chosen"]: metrics(true, pred)}
     keys = ["L", "mse_hr", "f2", "precision", "recall"]
     print(f"test events {len(tab)}; chosen = {art['chosen']}")
@@ -382,12 +402,41 @@ def cmd_eval(path: Path) -> None:
         print(f"{n:8}" + "".join(f"{m[k]:11.3f}" for k in keys))
     lo, hi = interval_table(art["interval"], tab, pred)
     t = np.clip(true, FLOOR, None)
-    print(f"80% interval empirical coverage on test: {np.mean((t >= lo) & (t <= hi)):.3f} "
-          f"(mean width {np.mean(hi - lo):.2f})")
+    coverage, width = float(np.mean((t >= lo) & (t <= hi))), float(np.mean(hi - lo))
+    print(f"80% interval empirical coverage on test: {coverage:.3f} (mean width {width:.2f})")
+    hr = true >= HIGH_RISK
+    breakdown = {a: {"events": int((act == a).sum()), "high_risk_events": int(((act == a) & hr).sum())}
+                 for a in ("ACT", "WAIT", "MONITOR")}
+    for a, b in breakdown.items():
+        print(f"{a:8} {b['events']:5d} events, {b['high_risk_events']:4d} of {int(hr.sum())} high-risk")
+    from sklearn.metrics import average_precision_score, brier_score_loss
+    sha_after = _sha256(path)
+    if sha_after != sha_before:
+        raise ValueError("Decision artefact changed during evaluation; no evidence written")
+    evidence = {
+        "status": "ready", "source": "ESA Collision Avoidance Challenge test set; sealed released labels",
+        "chosen": art["chosen"], "cv_mean_L": art.get("cv"), "t_act": art["t_act"], "t_wait": art["t_wait"],
+        "test_events": int(len(tab)), "high_risk_test_events": int(hr.sum()),
+        "metrics": {k: {m: (None if not np.isfinite(v) else float(v)) for m, v in d.items()} for k, d in res.items()},
+        "p_high": {"average_precision": float(average_precision_score(hr, p)), "brier": float(brier_score_loss(hr, p)),
+                   "note": "Calibrated logistic regression (isotonic, 5-fold) on decision features; P(final risk >= -6)."},
+        "interval": {"nominal": 0.8, "empirical_coverage": coverage, "mean_width_log10": width},
+        "actions": breakdown,
+        "fingerprints": {"decision_sha256_before_labels": sha_before, "decision_sha256_after_evaluation": sha_after},
+        "platform": {"architecture": platform.machine(), "python": platform.python_version()},
+        "evaluated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "limitations": ["Rules and gate were chosen by training-set cross-validation; the test set is a retrospective "
+                        "public set already used by earlier project versions.",
+                        "The 80% interval is honest but wide; it is decision context, not a precise forecast."],
+    }
+    evidence_path.parent.mkdir(parents=True, exist_ok=True)
+    evidence_path.write_text(json.dumps(evidence, indent=2, allow_nan=False), encoding="utf-8")
+    print(f"wrote {evidence_path}")
     ids = tab.index[(true >= HIGH_RISK)]
     eid = ids[0] if len(ids) else tab.index[0]
     print("example event", eid, "true risk", round(float(priv.loc[eid]), 2))
     print(decide(test[test["event_id"] == eid], art))
+    return evidence
 
 
 def main() -> None:

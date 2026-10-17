@@ -12,7 +12,22 @@ from .data import digest
 
 class MLService:
     def __init__(self,root):
-        self.root=Path(root); self.base=self.root/'artifacts/ml'; self._model=None; self._metadata=None; self._events=None; self._predictions=None
+        self.root=Path(root); self.base=self.root/'artifacts/ml'; self._model=None; self._metadata=None; self._events=None; self._predictions=None; self._decision=None
+
+    def _decision_layer(self, rows):
+        # Act / Wait / Monitor from the decision layer (rules + calibrated P(high) + quantile interval).
+        # Shown beside the validated forecast; it does not replace it or drive manoeuvre screening.
+        path=self.base/'decision.joblib'
+        if not path.exists(): return {'status':'missing','message':'Decision layer not trained; run orbitguard decision-fit.'}
+        if self._decision is None: self._decision=joblib.load(path)
+        from orbitguard.decision.decision import decide
+        try:
+            d=decide(rows,self._decision)
+        except (KeyError,ValueError,TypeError) as exc:
+            return {'status':'unavailable','message':f'The decision layer needs the full ESA CDM schema ({type(exc).__name__}: {exc}).'}
+        return {'status':'ready','action':d.action,'p_high':d.p_high,'predicted_log10_pc':d.predicted_risk,
+                'interval_log10_pc':list(d.interval),'interval_nominal':0.8,'reasons':list(d.reasons),
+                'thresholds':{'act':self._decision['t_act'],'wait':self._decision['t_wait']},'chosen':self._decision['chosen']}
 
     def _load_model(self):
         if self._model is None:
@@ -123,7 +138,8 @@ class MLService:
         if numeric_count<20: warnings.append('Sparse input features: supply the full ESA CDM schema for benchmark-comparable predictions.')
         if model['metadata']['selected_method']=='latest_baseline': warnings.append('Cross-validation selected the latest-risk baseline; learned challenger is shown in Evidence.')
         supplemental=self._supplemental_review(float(latest[0]),float(challenger[0]))
-        return {'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
+        decision=self._decision_layer(rows)
+        return {'decision':decision,'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
 
     def evidence(self):
         p=self.base/'evidence.json'
@@ -155,6 +171,14 @@ class MLService:
                 result['triage_evaluation']=triage
             else:
                 result['triage_evaluation']={'status':'stale','message':'Run train-triage and evaluate-triage for the current artifact.'}
+        decision_path=self.base/'decision_evidence.json'
+        if decision_path.exists():
+            dec=json.loads(decision_path.read_text())
+            art=self.base/'decision.joblib'
+            if art.exists() and dec.get('fingerprints',{}).get('decision_sha256_after_evaluation')==digest(art):
+                result['decision_evaluation']=dec
+            else:
+                result['decision_evaluation']={'status':'stale','message':'Run decision-eval for the current decision artefact.'}
         curves=self.ranking_curves()
         guard_path=self.base/'guard_evidence.json'
         policy_path=self.base/'guard_policy.json'

@@ -1,10 +1,10 @@
-"""Print the CPU vs NNPA benchmark table from the newest data/out/nnpa_bench_*.json (written by orbitguard.nnpa.bench)."""
+"""Print the CPU vs NNPA benchmark table from the newest artifacts/nnpa/nnpa_bench_*.json (written by orbitguard.nnpa.bench)."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[2] / "data" / "out"
+OUT = Path(__file__).resolve().parents[2] / "artifacts" / "nnpa"
 
 
 def main() -> None:
