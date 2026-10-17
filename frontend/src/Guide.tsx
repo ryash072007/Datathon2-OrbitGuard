@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, X } from 'lucide-react';
+import { BookOpen, Check, X } from 'lucide-react';
 
 export type GuideTab = 'overview' | 'encounters' | 'planning' | 'live' | 'validation';
 const GUIDE_KEY = 'og-guide-dismissed';
@@ -50,20 +50,56 @@ export function Guide({tab, setTab, onGlossary, onHide}: {tab: GuideTab, setTab:
   </section>;
 }
 
-/** A compact "Try this" strip under a page intro, dismissible per page. */
+// ---------------------------------------------------------------- self-checking steps
+
+const STEPS_PREFIX = 'og-steps-';
+function readSteps(tab: GuideTab): number[] {
+  try {const parsed = JSON.parse(sessionStorage.getItem(STEPS_PREFIX + tab) || '[]'); return Array.isArray(parsed) ? parsed.filter(n => typeof n === 'number') : [];} catch {return [];}
+}
+/** Tick a Try-this step because the user actually did it. Repeat calls are ignored. */
+export function markStep(tab: GuideTab, n: number) {
+  const done = readSteps(tab);
+  if (done.includes(n)) return;
+  try {sessionStorage.setItem(STEPS_PREFIX + tab, JSON.stringify([...done, n]));} catch {/* storage unavailable: the tick lasts for this page only */}
+  window.dispatchEvent(new CustomEvent('og-step', {detail: {tab, n, done: [...done, n]}}));
+}
+
+type NextStep = {lead: string, label: string, hash: string};
+const NEXT: Partial<Record<GuideTab, NextStep>> = {
+  encounters: {lead: 'Next:', label: 'Open Manoeuvre planning', hash: 'planning'},
+  planning: {lead: 'Next:', label: 'Open Live catalogue', hash: 'live'},
+  live: {lead: 'Next:', label: 'see how every number was measured in Validation', hash: 'validation'},
+};
+
+/** A compact "Try this" strip under a page intro, dismissible per page. Steps tick as the user does them. */
 export function TryThis({tab, steps}: {tab: GuideTab, steps: string[]}) {
   const key = TIPS_PREFIX + tab;
   const [hidden, setHidden] = useState(() => read(key));
+  const [done, setDone] = useState<number[]>(() => readSteps(tab));
+  const [announce, setAnnounce] = useState('');
   useEffect(() => {
-    setHidden(read(key));
+    setHidden(read(key)); setDone(readSteps(tab));
     const show = () => setHidden(false);
+    const tick = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail.tab !== tab) return;
+      setDone(detail.done); setAnnounce(`Step ${detail.n} done`);
+    };
     window.addEventListener('og-guide-open', show);
-    return () => window.removeEventListener('og-guide-open', show);
-  }, [key]);
+    window.addEventListener('og-step', tick);
+    return () => {window.removeEventListener('og-guide-open', show); window.removeEventListener('og-step', tick);};
+  }, [key, tab]);
   if (hidden) return null;
+  const all = steps.every((_, i) => done.includes(i + 1));
+  const next = NEXT[tab];
   return <section className="tryit" aria-label="Try this">
     <strong className="tryit-title">Try this</strong>
-    <ol>{steps.map((text, i) => <li key={i}><span className="tryit-num" aria-hidden="true">{i + 1}</span><span>{text}</span></li>)}</ol>
+    {all && next ? <p className="tryit-next"><Check size={15} aria-hidden="true"/>Nice. {next.lead} <button className="link-button" onClick={() => {location.hash = next.hash; window.scrollTo(0, 0);}}>{next.label}</button></p>
+      : <ol>{steps.map((text, i) => {const ok = done.includes(i + 1); return <li key={i} className={ok ? 'done' : ''}>
+        <span className="tryit-num" aria-hidden="true">{ok ? <Check size={13}/> : i + 1}</span>
+        <span>{text}{ok && <span className="sr-only"> (done)</span>}</span>
+      </li>;})}</ol>}
+    <span className="sr-only" aria-live="polite">{announce}</span>
     <button className="tryit-close" aria-label="Hide tips for this page" onClick={() => {write(key, true); setHidden(true);}}><X size={14}/></button>
   </section>;
 }

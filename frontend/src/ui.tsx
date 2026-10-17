@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, CircleHelp, Loader2, RefreshCw, X } from 'lucide-react';
+import { Check, ChevronRight, CircleHelp, Loader2, RefreshCw, X } from 'lucide-react';
 import { request } from './api';
 
 /** Plain-language definitions shown in tooltips wherever a term appears. */
@@ -101,4 +101,72 @@ export function useTokens() {
     return () => {media.removeEventListener('change', update); window.removeEventListener('og-theme', update);};
   }, []);
   return tokens;
+}
+
+/** A probability in everyday words, e.g. "about 1 in 780". Empty when the value is not a usable probability. */
+export function plainOdds(p: number | null | undefined): string {
+  if (typeof p !== 'number' || !Number.isFinite(p) || p <= 0) return '';
+  if (p >= 0.5) return 'about 1 in 2 or higher';
+  const n = Number((1 / p).toPrecision(2));
+  const trim = (value: number) => String(Number(value.toPrecision(2)));
+  if (n >= 1e12) return 'less than 1 in a trillion';
+  if (n >= 1e9) return `about 1 in ${trim(n / 1e9)} billion`;
+  if (n >= 1e6) return `about 1 in ${trim(n / 1e6)} million`;
+  return `about 1 in ${n.toLocaleString('en-US')}`;
+}
+/** Muted plain-words line under a probability figure. Renders nothing when the probability is unusable. */
+export function Odds({p}: {p: number | null | undefined}) {
+  const text = plainOdds(p);
+  return text ? <span className="odds">{text}</span> : null;
+}
+
+function readFlag(key: string): boolean {
+  try {return localStorage.getItem(key) === '1';} catch {return false;}
+}
+function writeFlag(key: string, on: boolean) {
+  try {localStorage.setItem(key, on ? '1' : '0');} catch {/* storage unavailable: the choice lasts for this page only */}
+}
+/** Ask a Disclosure with this storage key to open (used by the section bar). */
+export function openDisclosure(storageKey: string) {window.dispatchEvent(new CustomEvent('og-open-details', {detail: storageKey}));}
+/** A native details disclosure, closed by default, that remembers whether it was opened. */
+export function Disclosure({storageKey, summary, children, className = '', id}: {storageKey: string, summary: ReactNode, children: ReactNode, className?: string, id?: string}) {
+  const [open, setOpen] = useState(() => readFlag(storageKey));
+  useEffect(() => {
+    const handler = (event: Event) => {if ((event as CustomEvent).detail === storageKey) {setOpen(true); writeFlag(storageKey, true);}};
+    window.addEventListener('og-open-details', handler);
+    return () => window.removeEventListener('og-open-details', handler);
+  }, [storageKey]);
+  return <details id={id} className={`disclosure ${className}`} open={open} onToggle={e => {const now = e.currentTarget.open; if (now !== open) {setOpen(now); writeFlag(storageKey, now);}}}>
+    <summary><ChevronRight size={15} aria-hidden="true"/>{summary}</summary>
+    <div className="disclosure-body">{children}</div>
+  </details>;
+}
+
+export type NavItem = {id: string, label: string, opens?: string};
+/** Sticky in-page section bar: highlights the section in view and scrolls to the others. */
+export function SectionNav({items, label = 'On this page'}: {items: NavItem[], label?: string}) {
+  const [picked, setActive] = useState('');
+  const key = items.map(i => i.id).join('|');
+  const active = items.some(i => i.id === picked) ? picked : items[0]?.id;
+  useEffect(() => {
+    const ids = key.split('|');
+    const inBand = new Set<string>();
+    const header = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 96;
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {if (entry.isIntersecting) inBand.add(entry.target.id); else inBand.delete(entry.target.id);}
+      const current = [...ids].reverse().find(id => inBand.has(id));
+      if (current) setActive(current);
+    }, {rootMargin: `-${Math.round(header + 56)}px 0px -55% 0px`});
+    ids.forEach(id => {const el = document.getElementById(id); if (el) observer.observe(el);});
+    return () => observer.disconnect();
+  }, [key]);
+  function jump(item: NavItem) {
+    if (item.opens) openDisclosure(item.opens);
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(() => document.getElementById(item.id)?.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'start'}), item.opens ? 30 : 0);
+    setActive(item.id);
+  }
+  return <nav className="sectionnav" aria-label={label}>
+    <ul>{items.map(item => <li key={item.id}><button className={active === item.id ? 'active' : ''} aria-current={active === item.id ? 'location' : undefined} onClick={() => jump(item)}>{item.label}</button></li>)}</ul>
+  </nav>;
 }

@@ -1,13 +1,14 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowDownToLine, BookOpen, Compass, ExternalLink, Loader2, Moon, Pause, Play, RefreshCw, Sun } from 'lucide-react';
-import { G, POLICIES, Empty, Loading, Notice, Status, Term, Tip, applyTheme, readTheme, useAsync, useTokens } from './ui';
+import { G, POLICIES, Empty, Loading, Notice, Odds, SectionNav, Status, Term, Tip, applyTheme, plainOdds, readTheme, useAsync, useTokens } from './ui';
+import type { NavItem } from './ui';
 import type { ThemeName } from './ui';
 import { Starfield } from './Starfield';
-import { Guide, TryThis, dismissGuide, guideDismissed, reopenGuide } from './Guide';
+import { Guide, TryThis, dismissGuide, guideDismissed, markStep, reopenGuide } from './Guide';
 import { Glossary } from './Glossary';
 import { PolicyBars, PopulationChart, RankingCurve } from './Charts';
-import { AuditPanel, DecisionCard, DecisionEvidence, LiveCatalogue, OperatorActions, PlatformEvidence } from './Live';
+import { AnswerBanner, AuditPanel, DecisionCard, DecisionEvidence, LiveCatalogue, OperatorActions, PlatformEvidence } from './Live';
 
 // The 3D views pull in three.js, so they load on first use rather than with the page.
 const OrbitalView = lazy(() => import('./Visuals').then(m => ({default: m.OrbitalView})));
@@ -20,6 +21,10 @@ import { AiEvidence } from './AiEvidence';
 
 type Tab = 'overview' | 'encounters' | 'planning' | 'live' | 'validation';
 const TABS: [Tab, string][] = [['encounters', 'Encounters'], ['planning', 'Manoeuvre planning'], ['live', 'Live catalogue'], ['validation', 'Validation'], ['overview', 'How it works']];
+const TAB_HINTS: Record<Tab, {step?: number, sub: string}> = {
+  encounters: {step: 1, sub: 'Assess a warning'}, planning: {step: 2, sub: 'Plan a safe burn'}, live: {step: 3, sub: 'Screen a real satellite'},
+  validation: {sub: 'Check the evidence'}, overview: {sub: 'The method'},
+};
 
 const METHOD_NAMES: Record<string, string> = {
   clipped_latest_baseline: 'Latest reported value (ESA baseline)',
@@ -73,13 +78,23 @@ export default function App() {
   const [guideShown, setGuideShown] = useState(() => !guideDismissed());
   const [glossary, setGlossary] = useState(false);
   const switchTheme = () => {const next: ThemeName = theme === 'dark' ? 'light' : 'dark'; applyTheme(next); setThemeState(next);};
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => document.documentElement.style.setProperty('--header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const goTab = (next: Tab) => {setTab(next); window.scrollTo(0, 0);};
   const showGuide = () => {reopenGuide(); setGuideShown(true); window.scrollTo(0, 0);};
   return <div className="app">
     <Starfield/>
-    <header className="topbar"><div className="topbar-inner">
+    <header className="topbar" ref={headerRef}><div className="topbar-inner">
       <a className="brand" href="#encounters" onClick={e => {e.preventDefault(); setTab('encounters');}}><OrbitMark/>OrbitGuard</a>
-      <nav className="tabs" aria-label="Sections">{TABS.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => {setTab(id); window.scrollTo(0, 0);}}>{label}</button>)}</nav>
+      <nav className="tabs" aria-label="Sections">{TABS.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => {setTab(id); window.scrollTo(0, 0);}}><span className="tab-line">{TAB_HINTS[id].step && <span className="tab-num" aria-hidden="true">{TAB_HINTS[id].step}</span>}{label}</span><span className="tab-sub">{TAB_HINTS[id].sub}</span></button>)}</nav>
       <div className="runtime">
         <span className={`dot ${health.data ? 'on' : health.error ? 'off' : ''}`}/>
         <span>{health.data ? (onLinuxONE ? 'IBM LinuxONE' : 'Local machine') : health.error ? 'Server unreachable' : 'Connecting'}</span>
@@ -193,12 +208,18 @@ function Encounters() {
   const lastDay = full.length ? full[full.length - 1].day : null;
   const population = useAsync<Json>('/population');
   const latestMessage = history.length ? history[(replayCount ?? history.length) - 1] : null;
+  const pick = (id: string) => {markStep('encounters', 1); setSelected(id);};
+  const messageNumber = replayCount ?? history.length;
+  const issued = latestMessage && finite(latestMessage.time_to_tca) ? ` · issued ${number(latestMessage.time_to_tca, 2)} days before closest approach` : '';
+  const bannerLine = `Message ${messageNumber} of ${history.length}${issued}${!playing && replayCount === null ? ' · press Play stream to replay how this call developed.' : ''}`;
+  const baselinePc = finite(forecast?.baseline_log10_pc) ? Math.pow(10, forecast.baseline_log10_pc) : null;
+  const finalPc = finite(reference) ? Math.pow(10, reference) : null;
 
   return <>
     <Intro title="Encounters">
       Historical close approaches from the held-out test set of ESA's Collision Avoidance Challenge. Each encounter is a series of <Term k="cdm">conjunction data messages</Term> issued in the days before two objects pass closest. Select one to replay its messages and compare forecasts of the <Term k="final">final reported collision probability</Term>.
     </Intro>
-    <TryThis tab="encounters" steps={['Pick an encounter from the list; the highest risk is at the top.', 'Press Play stream to replay its messages in order.', 'Read the decision card: Act, Wait or Monitor, and the reasons behind it.']}/>
+    <TryThis tab="encounters" steps={['Pick an encounter from the list; the highest risk is at the top.', 'Press Play stream to replay its messages in order.', 'Read the answer at the top: Act, Wait or Monitor. Open Why to see the reasons behind it.']}/>
     {list.error && <Notice retry={list.retry}>{list.error}</Notice>}
     <div className="encounters-layout">
       <section className="card list-card" aria-label="Encounter list">
@@ -210,8 +231,8 @@ function Encounters() {
         <div className="list-scroll">
           {list.loading ? <Loading label="Loading encounters"/> : visible.length ? <table className="table event-table">
             <thead><tr><th>Encounter</th><th className="num">Messages</th><th className="num">Days to <Term k="tca">TCA</Term></th><th className="num">Latest <Term k="pc">Pc</Term></th></tr></thead>
-            <tbody>{visible.map(e => {const id = String(e.event_id); return <tr key={id} className={selected === id ? 'selected' : ''} onClick={() => setSelected(id)}>
-              <td><button className="row-button" aria-pressed={selected === id} onClick={ev => {ev.stopPropagation(); setSelected(id);}}>#{id}</button></td>
+            <tbody>{visible.map(e => {const id = String(e.event_id); return <tr key={id} className={selected === id ? 'selected' : ''} onClick={() => pick(id)}>
+              <td><button className="row-button" aria-pressed={selected === id} onClick={ev => {ev.stopPropagation(); pick(id);}}>#{id}</button></td>
               <td className="num">{number(e.message_count, 0)}</td>
               <td className="num">{number(e.time_to_tca_days, 1)}</td>
               <td className="num">{logProbability(e.latest_log10_pc)}</td>
@@ -225,20 +246,20 @@ function Encounters() {
           <div className="card-head">
             <div><h2>Encounter #{selected}</h2><p className="muted small">{history.length} messages; the last one was issued {number(lastDay, 2)} days before closest approach.</p></div>
           </div>
+          <AnswerBanner decision={forecast?.decision} busy={forecastBusy} message={bannerLine}/>
           <h3 className="subhead">Reported collision probability over time <Tip text={`${G.pc} ${G.threshold}`}/></h3>
           <RiskChart data={shown} full={full}/>
           <div className="replay">
-            <button className="btn icon" aria-label={playing ? 'Pause replay' : 'Replay messages one by one'} onClick={() => {if (playing) {setPlaying(false); return;} if (replayCount === null || replayCount >= history.length) {setUpdates([]); setReplayCount(1);} setPlaying(true);}}>{playing ? <Pause size={14}/> : <Play size={14}/>}<span>{playing ? 'Pause' : 'Play stream'}</span></button>
+            <button className="btn icon" aria-label={playing ? 'Pause replay' : 'Replay messages one by one'} onClick={() => {if (playing) {setPlaying(false); return;} markStep('encounters', 2); if (replayCount === null || replayCount >= history.length) {setUpdates([]); setReplayCount(1);} setPlaying(true);}}>{playing ? <Pause size={14}/> : <Play size={14}/>}<span>{playing ? 'Pause' : 'Play stream'}</span></button>
             <input aria-label="Historical message replay position" type="range" min="1" max={history.length} value={replayCount ?? history.length} onChange={e => {setPlaying(false); setReplayCount(Number(e.target.value));}}/>
             <span className="small muted replay-count">Message {replayCount ?? history.length} of {history.length}{forecastBusy && <Loader2 size={12} className="spin"/>}</span>
           </div>
-          <div className="figures">
-            <div className="figure"><span className="figure-label">Latest reported value <Tip text={G.latest}/></span><strong>{logProbability(forecast?.baseline_log10_pc)}</strong><span className="tag">Default forecast</span></div>
-            <div className="figure"><span className="figure-label">Learned model <Tip text={G.learned}/></span><strong>{logProbability(forecast?.learned_forecast_log10_pc)}</strong></div>
-            <div className="figure muted-figure"><span className="figure-label">Final reported value <Tip text={G.final}/></span><strong>{logProbability(reference)}</strong><span className="small muted">Revealed for comparison</span></div>
+          <div className="figures two">
+            <div className="figure"><span className="figure-label">Latest reported value <Tip text={G.latest}/></span><strong>{logProbability(forecast?.baseline_log10_pc)}</strong><Odds p={baselinePc}/><span className="tag">Default forecast</span></div>
+            <div className="figure muted-figure"><span className="figure-label">Final reported value <Tip text={G.final}/></span><strong>{logProbability(reference)}</strong><Odds p={finalPc}/><span className="small muted">Revealed for comparison</span></div>
           </div>
           {forecast?.error && <Notice retry={() => setReplayAttempt(current => current + 1)}>{forecast.error}</Notice>}
-          <DecisionCard decision={forecast?.decision} eventId={selected}/>
+          <DecisionCard decision={forecast?.decision} eventId={selected} learned={forecast?.learned_forecast_log10_pc}/>
           {updates.length > 0 && <section className="replay-timeline" aria-label="Update processing timeline">
             <h3 className="subhead">Update → forecast → alert</h3>
             <p className="small muted">Historical replay, not a live feed: messages arrive hours apart, and every new one gets a fresh decision in milliseconds. Each step waits for the server before continuing. Alert changes compare consecutive message prefixes, even when you scrub.</p>
@@ -267,7 +288,7 @@ function Encounters() {
       </section>
       <section className="card" aria-label="All encounters by orbit">
         <div className="card-head"><div><h2>Where all {number(population.data?.count, 0)} encounters happen</h2><p className="muted small">Each dot is one encounter, placed by the orbit of the object that approached an ESA satellite. Clusters are orbits shared by many objects, often debris from earlier break-ups. Click a dot to open that encounter.</p></div></div>
-        {population.error ? <Notice retry={population.retry}>{population.error}</Notice> : population.data ? <PopulationChart population={population.data} selected={selected} onSelect={setSelected}/> : <Loading label="Loading all encounters"/>}
+        {population.error ? <Notice retry={population.retry}>{population.error}</Notice> : population.data ? <PopulationChart population={population.data} selected={selected} onSelect={pick}/> : <Loading label="Loading all encounters"/>}
       </section>
     </div>
   </>;
@@ -296,11 +317,28 @@ function RiskChart({data, full}: {data: {day: number, risk: number}[], full: {da
 
 // ---------------------------------------------------------------- planning
 
-function worstOther(policy: Json | undefined, primary: string): {id: string, pc: number} | null {
+function worstOther(policy: Json | undefined, primary: string): {id: string, pc: number, miss_m: number | null} | null {
   const others = (policy?.encounters || []).filter((e: Json) => e.object_id !== primary && finite(e.sensitivity_worst_pc));
   if (!others.length) return null;
   const worst = others.reduce((a: Json, b: Json) => b.sensitivity_worst_pc > a.sensitivity_worst_pc ? b : a);
-  return {id: worst.object_id, pc: worst.sensitivity_worst_pc};
+  return {id: worst.object_id, pc: worst.sensitivity_worst_pc, miss_m: finite(worst.miss_distance_m) ? worst.miss_distance_m : null};
+}
+function distanceText(m: number): string {return m >= 1000 ? `${number(m / 1000, 1)} km` : `${number(m, 0)} m`;}
+/** The result in one or two plain sentences, built only from the screening result; clauses without data are left out. */
+function planSentence(result: Json, primaryId: string): string {
+  const rec = result.recommendation, policies = result.policies || {}, pair = policies.pair_only;
+  const limitOdds = plainOdds(result.risk_threshold).replace(/^about /, '');
+  const limit = limitOdds ? ` (${limitOdds})` : '';
+  const tried = finite(result.candidates_evaluated) ? ` of the ${number(result.candidates_evaluated, 0)} candidates tried` : '';
+  if (!rec) return `OrbitGuard found no burn${tried} that keeps every object below the risk limit${limit}, so it declines to recommend one. Escalate to the operations team.`;
+  if (!rec.delta_v_mps) return `OrbitGuard recommends no burn: every encounter in the planning window is already below the risk limit${limit}.`;
+  let text = `OrbitGuard recommends a ${fixed(Math.abs(rec.delta_v_mps), 2)} m/s ${rec.delta_v_mps > 0 ? 'prograde' : 'retrograde'} burn that keeps every object below the risk limit${limit}.`;
+  const hazard = pair?.introduced_secondary_hazard ? worstOther(pair, primaryId) : null;
+  if (hazard) {
+    const odds = plainOdds(hazard.pc);
+    text += ` Avoiding only ${primaryId} would bring A${hazard.miss_m !== null ? ` within ${distanceText(hazard.miss_m)} of ${hazard.id}` : ` close to ${hazard.id}`}${odds ? `, with a collision chance ${odds}` : ''}.`;
+  }
+  return text;
 }
 function burnText(dv: number | null | undefined, time: number | null | undefined) {
   if (!finite(dv) || dv === 0) return 'None';
@@ -318,13 +356,19 @@ function Planning() {
   const [job, setJob] = useState<Json | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [activePolicy, setActivePolicy] = useState('orbitguard');
+  const [activePolicy, setActivePolicyRaw] = useState('orbitguard');
+  const setActivePolicy = (id: string) => {markStep('planning', 3); setActivePolicyRaw(id);};
   const [focus, setFocus] = useState<'primary' | 'secondary'>('primary');
+  const evidence = useAsync<Json>('/evidence');
+  const screeningStats = evidence.data?.runtime?.screening;
+  const candidateCount = screeningStats?.candidates_evaluated_per_run?.[0];
+  const seconds = finite(screeningStats?.p50_ms) ? Math.max(1, Math.round(screeningStats.p50_ms / 1000)) : null;
   const runVersion = useRef(0);
   useEffect(() => () => {runVersion.current += 1;}, []);
-  useEffect(() => {setResult(null); setJob(null); setError(''); setFocus('primary'); setActivePolicy('orbitguard');}, [selected]);
+  useEffect(() => {setResult(null); setJob(null); setError(''); setFocus('primary'); setActivePolicyRaw('orbitguard');}, [selected]);
 
   async function run() {
+    markStep('planning', 1); markStep('planning', 2);
     const version = ++runVersion.current;
     const isCurrent = () => version === runVersion.current;
     setBusy(true); setError(''); setResult(null);
@@ -357,10 +401,10 @@ function Planning() {
     <Intro title="Manoeuvre planning">
       Synthetic simulation, separate from the historical ESA forecast. OrbitGuard tries 37 candidate burns for satellite A, checks each one against every nearby object, and recommends the smallest acceptable burn below the <Term k="limit">risk limit</Term>. A burn that avoids one object can steer into another; the first scenario demonstrates this failure mode.
     </Intro>
-    <TryThis tab="planning" steps={['Choose a scenario; the first one shows the trap.', 'Press Screen manoeuvres.', 'Select a policy row, then jump to each closest approach in the orbital view.']}/>
+    <TryThis tab="planning" steps={['Choose a scenario; the first one shows the trap.', 'Press Screen manoeuvres.', 'Select a policy row, then use Jump to in the orbital view to visit each closest approach.']}/>
     <section className="card toolbar">
       <label className="field"><span>Scenario</span>
-        <select aria-label="Scenario" value={selected} disabled={busy || !scenarios.length} onChange={e => setSelected(e.target.value)}>
+        <select aria-label="Scenario" value={selected} disabled={busy || !scenarios.length} onChange={e => {markStep('planning', 1); setSelected(e.target.value);}}>
           {!scenarios.length && <option>{list.loading ? 'Loading' : 'No scenarios available'}</option>}
           {scenarios.map(s => <option key={s.scenario_id} value={s.scenario_id}>{s.name || s.scenario_id}</option>)}
         </select>
@@ -371,9 +415,19 @@ function Planning() {
     {(error || list.error || scenarioReq.error) && <Notice retry={error ? undefined : scenarioReq.error ? scenarioReq.retry : list.retry}>{error || list.error || scenarioReq.error}</Notice>}
     {error && job?.job_id && <a className="link" href={`/api/jobs/${encodeURIComponent(job.job_id)}`} target="_blank" rel="noreferrer">Check server job status <ExternalLink size={12}/></a>}
 
-    <Recommendation result={result} busy={busy} job={job} primaryId={primaryId}/>
+    {busy ? <Recommendation result={result} busy={busy} job={job} primaryId={primaryId}/> : !result ? <section className="card firstrun" aria-label="Run the screening">
+      <p className="answer-line">OrbitGuard will try {finite(candidateCount) ? `${number(candidateCount, 0)} ` : ''}candidate burns for satellite A and check each one against every nearby object.</p>
+      <button className="btn primary large" disabled={!scenario} onClick={run}><Play size={18}/> Screen manoeuvres</button>
+      {seconds !== null && <p className="small muted">Takes about {seconds === 1 ? 'one second' : `${seconds} seconds`}.</p>}
+    </section> : <>
+      <section className="card firstrun" aria-label="Screening result" aria-live="polite">
+        <p className="answer-line">{planSentence(result, primaryId)}</p>
+        <button className="btn" onClick={run}><RefreshCw size={14}/> Run again</button>
+      </section>
+      <Recommendation result={result} busy={busy} job={job} primaryId={primaryId}/>
+    </>}
 
-    <section className="card" aria-label="Orbital view">
+    <section className="card" aria-label="Orbital view" onClick={e => {if ((e.target as HTMLElement).closest('.jumps button')) markStep('planning', 3);}}>
       <div className="card-head">
         <div><h2>Orbital view <Tip text="Paths over the three-hour planning window in an Earth-centred inertial frame, so the Earth is drawn without its rotation. Altitudes are to scale; at this scale a near miss of a few metres looks like a collision, so use the distance chart and the encounter geometry for close-range detail."/></h2><p className="muted small">Satellite A and every tracked object nearby, for the policy selected in the table below. {result ? '' : 'Showing the paths before any burn; run the screening to compare policies.'}</p></div>
       </div>
@@ -388,8 +442,8 @@ function Planning() {
           <tbody>{POLICIES.map(p => {const row = policies[p.id]; const other = worstOther(row, primaryId); return <tr key={p.id} className={activePolicy === p.id ? 'selected' : ''} onClick={() => setActivePolicy(p.id)}>
             <td><button className="row-button" aria-pressed={activePolicy === p.id} onClick={ev => {ev.stopPropagation(); setActivePolicy(p.id);}}>{p.id === 'pair_only' ? `Avoid ${primaryId} only` : p.label}</button><div className="small muted">{p.id === 'pair_only' ? `Cheapest burn that clears ${primaryId}, ignoring others` : p.short}</div></td>
             <td className="nowrap">{row ? (row.abstained ? 'None found' : burnText(row.delta_v_mps, row.burn_time_seconds)) : '—'}</td>
-            <td className={`num ${row?.primary_pc >= 1e-4 ? 'over' : ''}`}>{probability(row?.primary_pc)}</td>
-            <td className={`num ${row?.worst_secondary_pc >= 1e-4 ? 'over' : ''}`}>{probability(row?.worst_secondary_pc)}{other && row?.worst_secondary_pc >= 1e-6 && <span className="small muted"> ({other.id})</span>}</td>
+            <td title={plainOdds(row?.primary_pc) || undefined} className={`num ${row?.primary_pc >= 1e-4 ? 'over' : ''}`}>{probability(row?.primary_pc)}</td>
+            <td title={plainOdds(row?.worst_secondary_pc) || undefined} className={`num ${row?.worst_secondary_pc >= 1e-4 ? 'over' : ''}`}>{probability(row?.worst_secondary_pc)}{other && row?.worst_secondary_pc >= 1e-6 && <span className="small muted"> ({other.id})</span>}</td>
             <td>{row ? <><Status ok={row.accepted}>{row.abstained ? 'Declined' : row.accepted ? 'Accepted' : 'Rejected'}</Status>{!row.accepted && row.reason && <div className="small muted reason">{row.reason}</div>}</> : <span className="muted">Not run</span>}</td>
           </tr>;})}</tbody>
         </table></div>
@@ -417,7 +471,7 @@ function Planning() {
 
 function Recommendation({result, busy, job, primaryId}: {result: Json | null, busy: boolean, job: Json | null, primaryId: string}) {
   if (busy) return <section className="card recommendation"><Loading label={`Screening candidate burns on the server (${job?.status || 'queued'})`}/></section>;
-  if (!result) return <section className="card recommendation"><p className="muted">Press <strong>Screen manoeuvres</strong> to evaluate every candidate burn for this scenario. It takes about two seconds.</p></section>;
+  if (!result) return null;
   const policies = result.policies || {};
   const chosen = policies.orbitguard || result.recommendation || {};
   const pair = policies.pair_only;
@@ -444,7 +498,7 @@ function Recommendation({result, busy, job, primaryId}: {result: Json | null, bu
       <p>{explanation}</p>
     </div>
     <dl className="facts">
-      <div><dt>Worst encounter Pc <Tip text={G.uncertainty}/></dt><dd>{probability(chosen.worst_pc)} <span className="muted small">limit {powerOfTen(Math.round(Math.log10(result.risk_threshold ?? 1e-4)))}</span></dd></div>
+      <div><dt>Worst encounter Pc <Tip text={G.uncertainty}/></dt><dd>{probability(chosen.worst_pc)} <span className="muted small">limit {powerOfTen(Math.round(Math.log10(result.risk_threshold ?? 1e-4)))}</span><Odds p={chosen.worst_pc}/></dd></div>
       <div><dt>Candidates screened</dt><dd>{number(result.candidates_evaluated, 0)} in {number((result.elapsed_ms ?? 0) / 1000, 2)} s</dd></div>
       <div><dt>Numerical re-check <Tip text={G.verify}/></dt><dd>{verification ? <Status ok={verification.status === 'passed'}>{verification.status === 'passed' ? 'Passed' : verification.status === 'rejected' ? 'Rejected: risk limit exceeded' : 'Failed'}</Status> : '—'}</dd></div>
     </dl>
@@ -463,8 +517,8 @@ function CandidateTable({candidates, policies, primaryId}: {candidates: Json[], 
       <thead><tr><th>Burn</th><th className="num">Pc with {primaryId}</th><th className="num">Worst Pc, other objects</th><th>Result</th></tr></thead>
       <tbody>{candidates.map(c => <tr key={c.candidate_id}>
         <td className="nowrap">{burnText(c.delta_v_mps, c.burn_time_seconds)}{picks[c.candidate_id]?.map(name => <span key={name} className="tag">{name}</span>)}</td>
-        <td className={`num ${c.primary_pc >= 1e-4 ? 'over' : ''}`}>{probability(c.primary_pc)}</td>
-        <td className={`num ${c.worst_secondary_pc >= 1e-4 ? 'over' : ''}`}>{probability(c.worst_secondary_pc)}</td>
+        <td title={plainOdds(c.primary_pc) || undefined} className={`num ${c.primary_pc >= 1e-4 ? 'over' : ''}`}>{probability(c.primary_pc)}</td>
+        <td title={plainOdds(c.worst_secondary_pc) || undefined} className={`num ${c.worst_secondary_pc >= 1e-4 ? 'over' : ''}`}>{probability(c.worst_secondary_pc)}</td>
         <td><Status ok={Boolean(c.accepted)}/>{!c.accepted && c.rejection_reasons?.length > 0 && <span className="small muted"> {c.rejection_reasons.join('; ')}</span>}</td>
       </tr>)}</tbody>
     </table></div>
@@ -590,6 +644,12 @@ function Validation() {
   const env = runtime.environment || {};
   const boot = v.paired_bootstrap?.ci95;
   const baselineRow = byName.clipped_latest_baseline;
+  const hasDecision = Boolean(ml.decision_evaluation), hasGuard = Boolean(ml.guard_evaluation?.methods?.residual_guard);
+  const validationNav: NavItem[] = [
+    {id: 'sec-forecast', label: 'ESA forecasts'}, ...(hasDecision ? [{id: 'sec-decision', label: 'Decision layer'}] : []), {id: 'sec-ai', label: 'AI evidence'}, {id: 'sec-accuracy', label: 'Accuracy'},
+    ...(hasGuard ? [{id: 'sec-guard', label: 'Extra alerts'}] : []), {id: 'sec-physics', label: 'NASA cases'}, {id: 'sec-policies', label: 'Policies'}, {id: 'sec-speed', label: 'Speed'},
+    {id: 'sec-platform', label: 'LinuxONE'}, {id: 'sec-audit', label: 'Audit trail'}, {id: 'sec-data', label: 'Data and limits'},
+  ];
 
   return <>
     <Intro title="Validation" action={<div className="actions"><EvidenceDownload data={data}/><button className="btn small" disabled={loading} onClick={retry}><RefreshCw size={13} className={loading ? 'spin' : ''}/> Reload</button></div>}>
@@ -598,8 +658,9 @@ function Validation() {
     <p className="page-note">Use this page to check a claim: each figure names where it was measured, and missing results are shown as unavailable.</p>
     {error && <Notice retry={retry}>{error}</Notice>}
     {loading ? <Loading label="Loading evaluation results"/> : <>
+    <SectionNav items={validationNav} label="Validation sections"/>
 
-    <section className="card section">
+    <section id="sec-forecast" className="card section">
       <div className="section-head"><div><h2>Forecasting on held-out ESA data</h2>
         <p className="muted">{baselineRow ? <>{number(baselineRow.event_count, 0)} test encounters ({number(baselineRow.high_risk_event_count, 0)} high-risk) that were never used for training or model selection. </> : null}
         {v.published_baseline_reproduced ? <>Our scoring reproduces ESA's published baseline loss of {v.published_clipped_latest_loss_rounded} (we get {fixed(v.reproduced_clipped_latest_loss, 4)}), which confirms the evaluation is set up correctly.</> : null}</p></div></div>
@@ -624,11 +685,11 @@ function Validation() {
       <TriageEvidence evaluation={ml.triage_evaluation}/>
     </section>
 
-    <DecisionEvidence evaluation={ml.decision_evaluation}/>
-    <AiEvidence/>
-    <AccuracyAudit audit={ml.accuracy_audit}/>
-    <GuardEvidence evaluation={ml.guard_evaluation}/>
-    <section className="card section">
+    {hasDecision && <div id="sec-decision"><DecisionEvidence evaluation={ml.decision_evaluation}/></div>}
+    <div id="sec-ai"><AiEvidence/></div>
+    <div id="sec-accuracy"><AccuracyAudit audit={ml.accuracy_audit}/></div>
+    {hasGuard && <div id="sec-guard"><GuardEvidence evaluation={ml.guard_evaluation}/></div>}
+    <section id="sec-physics" className="card section">
       <div className="section-head"><div><h2>Collision probability against NASA reference cases</h2>
         <p className="muted">NASA's Conjunction Assessment Risk Analysis team publishes test cases with known answers. Our independent implementation must match each within 0.1%.</p></div></div>
       {cases.length ? <div className="table-wrap"><table className="table">
@@ -639,7 +700,7 @@ function Validation() {
       <a className="link" href="https://github.com/nasa/CARA_Analysis_Tools" target="_blank" rel="noreferrer">NASA CARA Analysis Tools <ExternalLink size={12}/></a>
     </section>
 
-    <section className="card section">
+    <section id="sec-policies" className="card section">
       <div className="section-head"><div><h2>Manoeuvre policies on {bench?.scenario_count ?? 50} test scenarios</h2>
         <p className="muted">A fixed set of simulated scenarios, designed in advance to stress each policy: {bench?.suite_distribution ? Object.entries(bench.suite_distribution as Record<string, number>).map(([k, n]) => `${n} ${({clear: 'with nothing to avoid', primary: 'with one hazard', secondary: 'where avoiding one object endangers another', blocked: 'with no safe option'} as Record<string, string>)[k] || k}`).join(', ') : 'see the evaluation file'}. The mix is a stress test, not a sample of real-world traffic.</p></div></div>
       {bench?.policies && <PolicyBars policies={bench.policies} total={bench.scenario_count} names={POLICIES.map(p => ({id: p.id, label: p.id === 'pair_only' ? 'Avoid primary object only' : p.label}))}/>}
@@ -650,7 +711,7 @@ function Validation() {
       {bench?.policies && <p className="finding"><strong>Result:</strong> avoiding only the primary object created {number(bench.policies.pair_only?.secondary_hazards_introduced, 0)} new hazards; OrbitGuard created {number(bench.policies.orbitguard?.secondary_hazards_introduced, 0)}. Mean Δv was {fixed(bench.policies.pair_only?.mean_delta_v_mps, 4)} and {fixed(bench.policies.orbitguard?.mean_delta_v_mps, 4)} m/s respectively. {finite(bench.failed_scenarios) ? `${bench.failed_scenarios} scenarios failed to compute.` : 'Failed-scenario count unavailable.'}</p>}
     </section>
 
-    <section className="card section">
+    <section id="sec-speed" className="card section">
       <div className="section-head"><div><h2>Speed on this server</h2>
         <p className="muted">{env.architecture ? `Measured on ${env.is_linuxone ? 'IBM LinuxONE' : 'a development machine'} (${env.architecture}, ${env.available_cpus} CPUs, Python ${env.python_version}). ` : ''}Times cover the server-side computation only, not network transfer to your browser.</p></div></div>
       {runtime.forecast ? <div className="table-wrap"><table className="table">
@@ -663,10 +724,10 @@ function Validation() {
       {runtime.parallel_comparison && <p className="finding"><strong>Parallel screening:</strong> {runtime.parallel_comparison.workloads} scenarios took {number(runtime.parallel_comparison.serial_seconds, 1)} s one at a time and {number(runtime.parallel_comparison.parallel_seconds, 1)} s across {runtime.parallel_comparison.workers} CPU cores, {number(runtime.parallel_comparison.speedup, 2)}× faster.</p>}
     </section>
 
-    <PlatformEvidence/>
+    <div id="sec-platform"><PlatformEvidence/></div>
     <AuditPanel/>
 
-    <section className="card section">
+    <section id="sec-data" className="card section">
       <div className="section-head"><div><h2>Data, provenance and limits</h2></div></div>
       <dl className="provenance">
         <div><dt>Dataset</dt><dd><a className="link" href="https://zenodo.org/records/4463683" target="_blank" rel="noreferrer">ESA Collision Avoidance Challenge <ExternalLink size={12}/></a> · CC BY 4.0</dd></div>

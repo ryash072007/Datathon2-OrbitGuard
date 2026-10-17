@@ -5,6 +5,7 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { finite, fixed, number, percent, post, request } from './api';
 import type { Json } from './api';
 import { Loading, Notice, Status, Tip, useAsync, useTokens } from './ui';
+import { markStep } from './Guide';
 
 /* Everything on this page is read from artefacts via /api/ai-evidence. Nothing is typed in by hand. */
 
@@ -267,6 +268,7 @@ export function AskOrbitGuard({norad}: {norad: number}) {
   useEffect(() => {alive.current = true; return () => {alive.current = false;};}, []);
   async function ask(q: string, refresh = false) {
     if (!q.trim() || busy) return;
+    markStep('live', 3);
     setBusy(true); setError(''); setNotice(''); setElapsed(0);
     const t0 = Date.now();
     const tick = window.setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);

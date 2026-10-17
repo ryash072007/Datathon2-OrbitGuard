@@ -1,22 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, Clock, Loader2, Play, RefreshCw, ShieldCheck, X } from 'lucide-react';
-import { Empty, G, Loading, Notice, Status, Term, Tip, useAsync } from './ui';
+import { Check, Clock, Eye, Hourglass, Loader2, Play, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
+import { Disclosure, Empty, G, Loading, Notice, Odds, SectionNav, Status, Term, Tip, plainOdds, useAsync } from './ui';
+import type { NavItem } from './ui';
 import { finite, fixed, logProbability, number, percent, post, probability, request } from './api';
 import type { Json } from './api';
 import { AskOrbitGuard, SecondOpinion } from './AiEvidence';
-import { TryThis } from './Guide';
+import { TryThis, markStep } from './Guide';
 
 const ISS = 25544;
 const DIRECTIONS: Record<string, string> = {'+T': 'Prograde', '-T': 'Retrograde', '+R': 'Radial out', '-R': 'Radial in', '+N': 'Cross-track +', '-N': 'Cross-track −'};
 const ACTION_TEXT: Record<string, string> = {
-  ACT: 'Prepare an avoidance manoeuvre: the evidence points to a high final risk.',
+  ACT: 'Prepare an avoidance manoeuvre.',
   WAIT: 'Borderline: wait for the next message before committing fuel.',
   MONITOR: 'Keep monitoring. This is not a safety clearance.',
 };
+const ACTION_ICON: Record<string, typeof Eye> = {ACT: TriangleAlert, WAIT: Hourglass, MONITOR: Eye};
 
-function Section({title, sub, action, children, label}: {title: ReactNode, sub?: ReactNode, action?: ReactNode, children: ReactNode, label?: string}) {
-  return <section className="card section" aria-label={label}><div className="card-head"><div><h2>{title}</h2>{sub && <p className="muted small">{sub}</p>}</div>{action}</div>{children}</section>;
+function Section({title, sub, action, children, label, id}: {title: ReactNode, sub?: ReactNode, action?: ReactNode, children: ReactNode, label?: string, id?: string}) {
+  return <section id={id} className="card section" aria-label={label}><div className="card-head"><div><h2>{title}</h2>{sub && <p className="muted small">{sub}</p>}</div>{action}</div>{children}</section>;
 }
 
 /** Poll the background-job registry while any job runs; call onDone when a watched key finishes. */
@@ -52,6 +54,7 @@ export function OperatorActions({context, reference, recommendation}: {context: 
   const [busy, setBusy] = useState(false);
   useEffect(() => {setRecord(null); setError('');}, [reference]);
   async function choose(choice: string) {
+    if (context !== 'planning') markStep(context === 'live' ? 'live' : 'encounters', 3);
     setBusy(true); setError('');
     try {setRecord({...(await post('/audit/operator', {context, reference, choice, recommendation})), choice});}
     catch (e) {setError((e as Error).message);}
@@ -69,22 +72,43 @@ export function OperatorActions({context, reference, recommendation}: {context: 
   </div>;
 }
 
-export function DecisionCard({decision, eventId}: {decision?: Json, eventId: string}) {
+/** The answer for an encounter, in plain words, above the chart. */
+export function AnswerBanner({decision, busy, message}: {decision?: Json, busy: boolean, message?: string}) {
+  const ready = decision && decision.status === 'ready';
+  const action = ready ? String(decision.action) : '';
+  const Icon = ACTION_ICON[action];
+  return <div className="answer" role="status" aria-live="polite">
+    {busy && !ready ? <p className="answer-text"><Loader2 size={15} className="spin" aria-hidden="true"/> Updating the call for this message…</p>
+      : ready ? <p className="answer-text">
+        <span className={`action-badge ${action.toLowerCase()}`}>{Icon && <Icon size={13} aria-hidden="true"/>}{action}</span>
+        <span>{ACTION_TEXT[action] || ''}{finite(decision.p_high) && <> The chance this encounter ends above the high-risk line (1 in a million) is <strong>{percent(decision.p_high)}</strong>.</>}</span>
+      </p>
+      : decision ? <p className="answer-text muted">Decision layer: {decision.message}</p> : null}
+    {message && <p className="small muted">{message}</p>}
+  </div>;
+}
+
+export function DecisionCard({decision, eventId, learned}: {decision?: Json, eventId: string, learned?: number | null}) {
   if (!decision) return null;
-  if (decision.status !== 'ready') return <p className="footnote">Decision layer: {decision.message}</p>;
+  if (decision.status !== 'ready') return <section className="decision" aria-label="Forecast details">
+    <Disclosure storageKey="og-details-encounters" summary="Technical details"><div className="figures one"><div className="figure"><span className="figure-label">Learned model <Tip text={G.learned}/></span><strong>{logProbability(learned)}</strong><Odds p={finite(learned) ? Math.pow(10, learned) : null}/></div></div></Disclosure>
+  </section>;
   const lo = decision.interval_log10_pc?.[0], hi = decision.interval_log10_pc?.[1];
-  return <section className={`decision decision-${String(decision.action).toLowerCase()}`} aria-label="Recommended action">
-    <div className="decision-head">
-      <span className={`action-badge ${String(decision.action).toLowerCase()}`}>{decision.action}</span>
-      <p>{ACTION_TEXT[decision.action] || ''}</p>
-    </div>
-    <div className="figures">
-      <div className="figure"><span className="figure-label">P(final risk ≥ 10⁻⁶) <Tip text="Probability that the final reported Pc ends at or above the ESA high-risk threshold, from a calibrated logistic model (isotonic calibration, 5-fold) on the message history. ACT and WAIT thresholds were chosen on training data only."/></span><strong>{percent(decision.p_high)}</strong><span className="small muted">ACT ≥ {percent(decision.thresholds?.act, 0)}, WAIT ≥ {percent(decision.thresholds?.wait, 0)}</span></div>
-      <div className="figure"><span className="figure-label">Decision-layer forecast <Tip text="The latest reported value adjusted by rules chosen with cross-validation on training encounters (for example, a borderline value just below 10⁻⁶ is promoted, a payload or very distant object is forced low)."/></span><strong>{logProbability(decision.predicted_log10_pc)}</strong></div>
-      <div className="figure"><span className="figure-label">80% interval <Tip text="Quantile gradient-boosting models (10th and 90th percentile of the final log Pc). Honest but wide; see Validation for its measured coverage."/></span><strong className="interval">{logProbability(lo)} – {logProbability(hi)}</strong></div>
-    </div>
-    <SecondOpinion decision={decision}/>
-    <details className="raw"><summary>Why ({(decision.reasons || []).length} reasons)</summary><ul className="limits">{(decision.reasons || []).map((r: string) => <li key={r}>{r}</li>)}</ul></details>
+  const forecastPc = finite(decision.predicted_log10_pc) ? Math.pow(10, decision.predicted_log10_pc) : null;
+  const learnedPc = finite(learned) ? Math.pow(10, learned) : null;
+  const reasons: string[] = decision.reasons || [];
+  return <section className="decision" aria-label="How the call was made">
+    <p className="small decision-rule">The call is Act at {percent(decision.thresholds?.act, 0)} or more, Wait at {percent(decision.thresholds?.wait, 0)} or more, otherwise Monitor, applied to the chance above. These thresholds were chosen on training data only.</p>
+    <details className="raw" onToggle={e => {if (e.currentTarget.open) markStep('encounters', 3);}}><summary>Why ({reasons.length} reasons)</summary><ul className="limits">{reasons.map(r => <li key={r}>{r}</li>)}</ul></details>
+    <Disclosure storageKey="og-details-encounters" summary="Technical details">
+      <div className="figures">
+        <div className="figure"><span className="figure-label">Learned model <Tip text={G.learned}/></span><strong>{logProbability(learned)}</strong><Odds p={learnedPc}/></div>
+        <div className="figure"><span className="figure-label">Decision-layer forecast <Tip text="The latest reported value adjusted by rules chosen with cross-validation on training encounters (for example, a borderline value just below 10⁻⁶ is promoted, a payload or very distant object is forced low)."/></span><strong>{logProbability(decision.predicted_log10_pc)}</strong><Odds p={forecastPc}/></div>
+        <div className="figure"><span className="figure-label">80% interval <Tip text="Quantile gradient-boosting models (10th and 90th percentile of the final log Pc). Honest but wide; see Validation for its measured coverage."/></span><strong className="interval">{logProbability(lo)} – {logProbability(hi)}</strong></div>
+      </div>
+      <p className="small muted">P(final risk ≥ 10⁻⁶) is {percent(decision.p_high)} <Tip text="Probability that the final reported Pc ends at or above the ESA high-risk threshold, from a calibrated logistic model (isotonic calibration, 5-fold) on the message history. ACT and WAIT thresholds were chosen on training data only."/></p>
+      <SecondOpinion decision={decision}/>
+    </Disclosure>
     <OperatorActions context="encounter" reference={eventId} recommendation={{action: decision.action, p_high: decision.p_high}}/>
   </section>;
 }
@@ -120,18 +144,25 @@ function Recommendation({facts}: {facts: Json}) {
       {pair && og && !pair.introduced_secondary_hazard && pair.burn_id === og.burn_id && <p className="small muted">Here the pair-only check picks the same burn: no other object in the {number(burns.n_objects_screened, 0)} screened comes close enough to matter.</p>}
     </div>
     <dl className="facts">
-      <div><dt>Worst encounter Pc <Tip text={G.uncertainty}/></dt><dd>{probability(og?.worst_pc)} <span className="muted small">limit {probability(pol.pc_threshold, 0)}</span></dd></div>
+      <div><dt>Worst encounter Pc <Tip text={G.uncertainty}/></dt><dd>{probability(og?.worst_pc)} <span className="muted small">limit {probability(pol.pc_threshold, 0)}</span><Odds p={og?.worst_pc}/></dd></div>
       <div><dt>Miss with this plan</dt><dd>{number(og?.miss_km_threat, 2)} km <span className="muted small">target {number(burns.target_km, 0)} km</span></dd></div>
       <div><dt>Candidates accepted</dt><dd>{number(burns.n_accepted, 0)} of {number(burns.n_screened, 0)}</dd></div>
     </dl>
-    <OperatorActions context="live" reference={og?.burn_id || pol.status || 'none'} recommendation={{status: pol.status, burn: og?.burn_id, dv_mps: og?.dv_mps, worst_pc: og?.worst_pc}}/>
   </section>;
+}
+
+function Decide({facts}: {facts: Json}) {
+  const pol = facts.burns?.policies || {}, og = pol.orbitguard;
+  const label = pol.status === 'recommended' && og ? `the ${fixed(og.dv_mps, 2)} m/s burn` : pol.status === 'no_action' ? 'no manoeuvre' : 'declining to recommend a burn';
+  return <Section id="sec-decide" title="Your decision" label="Operator decision" sub={<>OrbitGuard recommends {label}. The tool recommends and a person decides; your choice is added to the audit trail below.</>}>
+    <OperatorActions context="live" reference={og?.burn_id || pol.status || 'none'} recommendation={{status: pol.status, burn: og?.burn_id, dv_mps: og?.dv_mps, worst_pc: og?.worst_pc}}/>
+  </Section>;
 }
 
 function BurnTable({top}: {top: Json[]}) {
   return <div className="table-wrap"><table className="table compact">
     <thead><tr><th>Candidate</th><th>Direction</th><th className="num"><Term k="dv">Δv</Term> (m/s)</th><th className="num">Lead (orbits)</th><th className="num">Miss (km)</th><th className="num">New close approaches</th><th className="num">Worst Pc <Tip text={G.uncertainty}/></th><th>Result</th></tr></thead>
-    <tbody>{top.map(b => <tr key={b.burn_id}><td className="mono">{b.burn_id}</td><td>{DIRECTIONS[b.direction] || b.direction}</td><td className="num">{fixed(b.dv_mps, 2)}</td><td className="num">{number(b.lead_periods, 1)}</td><td className="num">{fixed(b.miss_km_threat, 2)}</td><td className="num">{number(b.new_conjunctions, 0)}</td><td className="num">{probability(b.worst_pc)}</td><td><Status ok={Boolean(b.accepted)}>{b.accepted ? 'Accepted' : b.feasible ? 'Pc too high' : 'Misses target'}</Status></td></tr>)}</tbody>
+    <tbody>{top.map(b => <tr key={b.burn_id}><td className="mono">{b.burn_id}</td><td>{DIRECTIONS[b.direction] || b.direction}</td><td className="num">{fixed(b.dv_mps, 2)}</td><td className="num">{number(b.lead_periods, 1)}</td><td className="num">{fixed(b.miss_km_threat, 2)}</td><td className="num">{number(b.new_conjunctions, 0)}</td><td className="num" title={plainOdds(b.worst_pc) || undefined}>{probability(b.worst_pc)}</td><td><Status ok={Boolean(b.accepted)}>{b.accepted ? 'Accepted' : b.feasible ? 'Pc too high' : 'Misses target'}</Status></td></tr>)}</tbody>
   </table></div>;
 }
 
@@ -176,7 +207,7 @@ function Survey({onRun, job}: {onRun: () => void, job?: Json}) {
 
 export function AuditPanel({refresh}: {refresh?: unknown}) {
   const a = useAsync<Json>('/audit?n=8', [refresh]);
-  return <Section title={<>Audit trail <Tip text="Append-only JSON lines. Each record stores the SHA-256 of its payload and of the previous record, so editing or deleting any earlier line breaks the chain. Verify on the server with orbitguard audit-verify."/></>} label="Audit trail"
+  return <Section id="sec-audit" title={<>Audit trail <Tip text="Append-only JSON lines. Each record stores the SHA-256 of its payload and of the previous record, so editing or deleting any earlier line breaks the chain. Verify on the server with orbitguard audit-verify."/></>} label="Audit trail"
     action={<button className="btn small" onClick={a.retry}><RefreshCw size={13}/> Reload</button>}
     sub={a.data ? <>Chain {a.data.intact ? 'intact' : `broken at record ${a.data.first_bad_seq}`}{a.data.head ? <> · head #{a.data.head.seq} <span className="mono">{String(a.data.head.record_hash).slice(0, 16)}…</span></> : ' · empty'}</> : undefined}>
     {a.data?.recent?.length ? <ul className="audit">{a.data.recent.map((r: Json) => <li key={r.seq}><span className="mono small">#{r.seq}</span><span className={`kind ${r.kind}`}>{r.kind}</span><span className="small">{summarise(r)}</span><span className="small muted">{new Date(r.utc).toLocaleTimeString()}</span></li>)}</ul>
@@ -206,6 +237,31 @@ function StageTimings({timings: t}: {timings?: Json}) {
   </Section>;
 }
 
+const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+function utcStamp(iso: unknown): string {
+  const date = new Date(String(iso));
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC'}).formatToParts(date).map(p => [p.type, p.value]));
+  return `${parts.weekday} ${parts.day} ${parts.month} ${parts.hour}:${parts.minute} UTC`;
+}
+/** One plain-words answer built only from the loaded analysis; clauses whose data is missing are left out. */
+function liveAnswer(f: Json): string {
+  const ev = f.event, pol = f.burns?.policies || {}, og = pol.orbitguard;
+  const parts: string[] = [];
+  const when = utcStamp(ev?.tca_utc);
+  if (ev?.primary?.name && ev?.threat?.name && finite(ev.miss_km)) parts.push(`${ev.primary.name} passes ${number(ev.miss_km, 2)} km from ${ev.threat.name}${when ? ` on ${when}` : ''}.`);
+  const odds = plainOdds(f.risk?.live_pc);
+  if (odds) parts.push(`Collision chance ${odds}.`);
+  const passing = finite(f.burns?.n_accepted) && finite(f.burns?.n_screened) ? ` (${number(f.burns.n_accepted, 0)} of ${number(f.burns.n_screened, 0)} candidates pass)` : '';
+  if (pol.status === 'recommended' && og && finite(og.dv_mps)) {
+    const lead = finite(og.lead_periods) ? `${Number.isInteger(og.lead_periods) && og.lead_periods <= 10 ? NUMBER_WORDS[og.lead_periods] : number(og.lead_periods, 1)} ${og.lead_periods === 1 ? 'orbit' : 'orbits'} before` : '';
+    const direction = DIRECTIONS[og.direction] ? DIRECTIONS[og.direction].toLowerCase() + ' ' : '';
+    parts.push(`Recommended: a ${fixed(og.dv_mps, 2)} m/s ${direction}burn${lead ? ` ${lead}` : ''}${passing}.`);
+  } else if (pol.status === 'no_action') parts.push(`Recommended: no manoeuvre${passing}.`);
+  else if (pol.status === 'abstained') parts.push(`No candidate burn passes the safety screen${passing}, so none is recommended.`);
+  return parts.join(' ');
+}
+
 export function LiveCatalogue() {
   const events = useAsync<Json>('/live/events');
   const [norad, setNorad] = useState(ISS);
@@ -218,23 +274,39 @@ export function LiveCatalogue() {
   const brief = useAsync<Json>(facts.data ? `/live/brief/${norad}` : null, [version]);
   const f = facts.data;
   const analyse = jobs[`analyse:${norad}`];
+  const burnsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {if (f) markStep('live', 1);}, [Boolean(f)]);
+  useEffect(() => {
+    const el = burnsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(entries => {if (entries.some(entry => entry.isIntersecting)) {markStep('live', 2); observer.disconnect();}}, {threshold: 0.25});
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [Boolean(f)]);
 
   async function start(path: string, body: unknown) {
     setError('');
     try {await post(path, body); kick();} catch (e) {setError((e as Error).message);}
   }
   function run() {
+    markStep('live', 1);
     const n = Number(input), t = Number(target);
     if (!Number.isInteger(n) || n <= 0) {setError('Enter a NORAD catalogue number, for example 25544 for the ISS.'); return;}
     setNorad(n);
     start('/live/analyse', {norad: n, target_km: t});
   }
   const ev = f?.event, risk = f?.risk || {};
+  const nav: NavItem[] = [
+    ...(f ? [{id: 'sec-result', label: 'Result'}, {id: 'sec-burns', label: 'Burn options'}, {id: 'sec-collide', label: 'If they collide'}, {id: 'sec-brief', label: 'AI brief'}, {id: 'sec-decide', label: 'Decide'}] : []),
+    {id: 'sec-audit', label: 'Audit trail'}, {id: 'sec-more', label: 'More analysis', opens: 'og-details-live'},
+  ];
+  const answer = f ? liveAnswer(f) : '';
   return <>
     <div className="intro"><div><h1>Live catalogue</h1><p className="lead">
-      Real orbits for every tracked object from CelesTrak, screened on LinuxONE. Find a satellite's closest approach in the next three days, test 145 candidate burns against the whole catalogue with the same <Term k="pc">Pc</Term> maths validated on NASA's reference cases, and see what a collision would cost. The operator makes the call.
+      Real orbits for every tracked object from CelesTrak, screened on LinuxONE. Find a satellite's closest approach in the next three days, test {f?.burns?.n_screened ? `${number(f.burns.n_screened, 0)} ` : ''}candidate burns against the whole catalogue with the same <Term k="pc">Pc</Term> maths validated on NASA's reference cases, and see what a collision would cost. The operator makes the call.
     </p></div></div>
-    <TryThis tab="live" steps={['Keep 25544 (the ISS) or enter another NORAD number, then press Find and screen.', 'Read the Recommendation, then compare the Candidate burns and what happens If they collide.', 'Read the Operator brief, ask a question, then record Accept, Defer or Reject in the audit trail.']}/>
+    <TryThis tab="live" steps={['Keep 25544 (the ISS) or enter another NORAD number, then press Find and screen.', 'Scroll to Burn options and compare the candidates, then see what happens If they collide.', 'Ask the AI brief a question, then record Accept, Defer or Reject under Decide.']}/>
     <section className="card controls" aria-label="Run an analysis">
       <label>Satellite (NORAD) <input className="search" list="live-sats" value={input} onChange={e => setInput(e.target.value)} inputMode="numeric"/></label>
       <datalist id="live-sats">{(events.data?.events || []).map((e: Json) => <option key={e.norad} value={e.norad}>{e.name}</option>)}</datalist>
@@ -244,36 +316,47 @@ export function LiveCatalogue() {
       {(events.data?.events || []).length > 1 && <div className="chips">{(events.data?.events || []).map((e: Json) => <button key={e.norad} className={`btn small ${e.norad === norad ? 'primary' : ''}`} onClick={() => {setNorad(e.norad); setInput(String(e.norad));}}>{e.name}</button>)}</div>}
     </section>
     {error && <Notice>{error}</Notice>}
+    <SectionNav items={nav}/>
 
-    {facts.loading ? <Loading label="Loading analysis"/> : !f ? <section className="card"><Empty title={`No analysis for NORAD ${norad} yet`}>Press <strong>Find and screen</strong>. On the 3-core LinuxONE VM the full pipeline (catalogue download, closest-approach search, 145 burns, consequence) takes one to two minutes.</Empty></section> : <>
-      <section className="card section" aria-label="Situation">
-        <div className="card-head"><div><h2>{ev.primary.name} and {ev.threat.name}</h2><p className="muted small">NORAD {ev.primary.norad} ({ev.primary.type}) and {ev.threat.norad} ({ev.threat.type}) · analysed {new Date(f.generated_utc).toLocaleString()}</p></div></div>
-        <div className="figures four">
-          <div className="figure"><span className="figure-label">Closest approach <Tip text={G.tca}/></span><strong className="small-figure">{new Date(ev.tca_utc).toUTCString().replace(' GMT', ' UTC')}</strong></div>
-          <div className="figure"><span className="figure-label">Miss distance <Tip text="SGP4 sampled every second, then refined to the straight-line closest approach. Sampling alone overstates a LEO miss by up to several kilometres."/></span><strong>{fixed(ev.miss_km, 2)} km</strong></div>
-          <div className="figure"><span className="figure-label">Collision probability <Tip text="Encounter-plane Gaussian integral (the implementation checked against NASA CARA reference cases) with assumed TLE position errors of 0.5 / 1 / 0.5 km (radial / along-track / cross-track) per object."/></span><strong>{probability(risk.live_pc)}</strong><span className="small muted">worst case {probability(risk.live_pc_worst)}</span></div>
-          <div className="figure"><span className="figure-label">Objects screened</span><strong>{number(f.burns?.n_objects_screened, 0)}</strong><span className="small muted">{number(f.timings_s?.screen_s, 1)} s for {number(f.burns?.n_screened, 0)} burns</span></div>
-        </div>
-      </section>
-      <Recommendation facts={f}/>
-      <StageTimings timings={f.stage_timings}/>
-      <Section title="Candidate burns" label="Candidate burns" sub={`Six directions × six sizes × four lead times. Accepted means the miss target is met and every close approach within 5 km, old or new, stays at or below Pc ${probability(f.burns?.policies?.pc_threshold, 0)} even at twice the assumed error.`}>
-        <BurnTable top={f.burns?.top || []}/>
+    {facts.loading ? <Loading label="Loading analysis"/> : !f ? <section className="card"><Empty title={`No analysis for NORAD ${norad} yet`}>Press <strong>Find and screen</strong>. On the 3-core LinuxONE VM the full pipeline (catalogue download, closest-approach search, candidate burns, consequence) takes one to two minutes.</Empty></section> : <>
+      <div id="sec-result" className="stack">
+        <section className="card section" aria-label="Situation">
+          <div className="card-head"><div><h2>{ev.primary.name} and {ev.threat.name}</h2><p className="muted small">NORAD {ev.primary.norad} ({ev.primary.type}) and {ev.threat.norad} ({ev.threat.type}) · analysed {new Date(f.generated_utc).toLocaleString()}</p></div></div>
+          {answer && <p className="answer-line">{answer}</p>}
+          <div className="figures four">
+            <div className="figure"><span className="figure-label">Closest approach <Tip text={G.tca}/></span><strong className="small-figure">{new Date(ev.tca_utc).toUTCString().replace(' GMT', ' UTC')}</strong></div>
+            <div className="figure"><span className="figure-label">Miss distance <Tip text="SGP4 sampled every second, then refined to the straight-line closest approach. Sampling alone overstates a LEO miss by up to several kilometres."/></span><strong>{fixed(ev.miss_km, 2)} km</strong></div>
+            <div className="figure"><span className="figure-label">Collision probability <Tip text="Encounter-plane Gaussian integral (the implementation checked against NASA CARA reference cases) with assumed TLE position errors of 0.5 / 1 / 0.5 km (radial / along-track / cross-track) per object."/></span><strong>{probability(risk.live_pc)}</strong><Odds p={risk.live_pc}/><span className="small muted">worst case {probability(risk.live_pc_worst)}{plainOdds(risk.live_pc_worst) ? `, ${plainOdds(risk.live_pc_worst)}` : ''}</span></div>
+            <div className="figure"><span className="figure-label">Objects screened</span><strong>{number(f.burns?.n_objects_screened, 0)}</strong><span className="small muted">{number(f.timings_s?.screen_s, 1)} s for {number(f.burns?.n_screened, 0)} burns</span></div>
+          </div>
+        </section>
+        <Recommendation facts={f}/>
+      </div>
+      <Section id="sec-burns" title="Burn options" label="Candidate burns" sub={`Candidate burns: six directions × six sizes × four lead times. Accepted means the miss target is met and every close approach within 5 km, old or new, stays at or below Pc ${probability(f.burns?.policies?.pc_threshold, 0)} even at twice the assumed error.`}>
+        <div ref={burnsRef}><BurnTable top={f.burns?.top || []}/></div>
       </Section>
-      <Section title="If they collide" label="Consequence" sub="What a collision at this closest approach would do to everyone else in orbit over 30 days.">
+      <Section id="sec-collide" title="If they collide" label="Consequence" sub="What a collision at this closest approach would do to everyone else in orbit over 30 days.">
         <Consequence cons={f.consequence}/>
       </Section>
-      <Section title={<>Operator brief <Tip text="Written by IBM Granite 3.3 2B running on the LinuxONE box (big-endian GGUF through llama.cpp) when LLM_BACKEND=llamacpp. A grounding guard extracts every number and checks it against the computed facts; any invented number switches to a deterministic template."/></>} label="Operator brief"
-        action={<div className="job-actions"><JobLine job={jobs[`brief:${norad}`]}/>{brief.data && <span className="badges"><span className="tag">{brief.data.backend_used}</span><Status ok={Boolean(brief.data.grounded)}>{brief.data.grounded ? 'Grounded' : 'Ungrounded'}</Status></span>}<button className="btn small" onClick={() => start(`/live/brief/${norad}`, {})}><RefreshCw size={13}/> Regenerate</button></div>}>
-        {brief.data?.text ? <><BriefText text={brief.data.text}/>{brief.data.issues?.length > 0 && <p className="footnote">Guard: {brief.data.issues.join('; ')}</p>}</> : brief.data?.status === 'computing' ? <Loading label="The on-box language model is writing the brief"/> : brief.loading ? <Loading label="Loading brief"/> : <Empty title="No brief yet"/>}
-      </Section>
-      <AskOrbitGuard norad={norad}/>
+      <div id="sec-brief" className="stack">
+        <Section title={<>Operator brief <Tip text="Written by IBM Granite 3.3 2B running on the LinuxONE box (big-endian GGUF through llama.cpp) when LLM_BACKEND=llamacpp. A grounding guard extracts every number and checks it against the computed facts; any invented number switches to a deterministic template."/></>} label="Operator brief"
+          action={<div className="job-actions"><JobLine job={jobs[`brief:${norad}`]}/>{brief.data && <span className="badges"><span className="tag">{brief.data.backend_used}</span><Status ok={Boolean(brief.data.grounded)}>{brief.data.grounded ? 'Grounded' : 'Ungrounded'}</Status></span>}<button className="btn small" onClick={() => start(`/live/brief/${norad}`, {})}><RefreshCw size={13}/> Regenerate</button></div>}>
+          {brief.data?.text ? <><BriefText text={brief.data.text}/>{brief.data.issues?.length > 0 && <p className="footnote">Guard: {brief.data.issues.join('; ')}</p>}</> : brief.data?.status === 'computing' ? <Loading label="The on-box language model is writing the brief"/> : brief.loading ? <Loading label="Loading brief"/> : <Empty title="No brief yet"/>}
+        </Section>
+        <AskOrbitGuard norad={norad}/>
+      </div>
+      <Decide facts={f}/>
     </>}
-    <div className="two-col">
-      <Network job={jobs.network} onRun={() => start('/live/network', {})}/>
-      <Survey job={jobs.survey} onRun={() => start('/live/survey', {})}/>
-    </div>
     <AuditPanel refresh={version}/>
+    <Disclosure id="sec-more" storageKey="og-details-live" className="more-analysis" summary="More analysis: stage timings, super-spreaders, probability versus priority">
+      <div className="stack">
+        {f && <StageTimings timings={f.stage_timings}/>}
+        <div className="two-col">
+          <Network job={jobs.network} onRun={() => start('/live/network', {})}/>
+          <Survey job={jobs.survey} onRun={() => start('/live/survey', {})}/>
+        </div>
+      </div>
+    </Disclosure>
     <p className="scope-note">Public TLEs have about 1 km of error and no covariance, so position uncertainty is assumed and every Pc is a screening indicator. Burns use a J2 delta model on top of SGP4 and ignore drag. Masses are assumed by object type. OrbitGuard supports a human operator; it does not command spacecraft.</p>
   </>;
 }
