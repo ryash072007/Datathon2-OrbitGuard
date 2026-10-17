@@ -35,11 +35,24 @@ Data comes down on the VM with the same download script. Don't scp it from the P
 
 | Phase | Port step on the VM | Done when | Evidence to capture (`docs/evidence/`) |
 | --- | --- | --- | --- |
-| 1 Risk model | Download data, run the training script, run the eval script | Metrics within noise of the Windows run; model trained on the VM | `lscpu` (s390x), training log with timing, metrics table |
-| 2 Screener | `pip install sgp4`; run the screener on the same conjunction with 1 worker and with N workers | Same ranked burns as on Windows; speed-up measured | Core-utilisation screenshot (`htop`) during the run, speed-up table |
-| 3 Brief + app | LLM path that runs on the VM (Lab 2 approach / `llama_cpp_python` from the image, or an API), template fallback; start Flask bound to 0.0.0.0 | Dashboard reachable from a browser and shows the brief | Screenshot of the dashboard served from the VM, the LLM running |
-| 4 Full run | Containerise (Dockerfile using the official s390x image as base) and run end to end | One command runs the demo | `docker ps`, container logs, architecture screenshot |
-| 5 Submission | Record the demo on the VM | Video shows the LinuxONE instance and model | Video, flowchart |
+| 1–2 Risk + decision | `python scripts/get_data.py`; `python -m src.risk.decision fit` then `eval` | Test L within noise of Windows (0.680); model trained on the VM | `lscpu` (s390x), training log with timing, metrics table |
+| 3 Screener | `pip install sgp4`; `python -m src.screen.run --primary 25544 --days 3 --target-km 10` and `--benchmark` | Same ranked burns as on Windows (TLEs refresh, so the event may differ); speed-up measured | `htop` during the run, speed-up table vs Windows |
+| 4 Consequence | `python -m src.consequence.run --primary 25544` and `--survey 20 --seed 0` | Same shape of results; timings recorded | Survey timing on N cores |
+| 5 Network + brief + app | `python -m src.network.run`; Granite big-endian GGUF (section below), `LLM_BACKEND=llamacpp`; Flask on 0.0.0.0 | Dashboard reachable from a browser, footer shows s390x/big, brief grounded | Dashboard screenshot from the VM, LLM log |
+| 6 Full run | Containerise (Dockerfile on the official s390x image) and run end to end | One command runs the demo | `docker ps`, container logs, architecture screenshot |
+| 7 Submission | Record the demo on the VM | Video shows the LinuxONE instance and model | Video, flowchart |
+
+## LLM on the VM (decision, Phase 5/6)
+
+The IBM labs weren't available to us, so we chose the stack ourselves: **IBM Granite 3.3 2B Instruct**
+(`ibm-granite/granite-3.3-2b-instruct`) via `llama_cpp_python` (already in the VM image), `LLM_BACKEND=llamacpp`.
+
+- s390x is big-endian, so GGUF files must be converted to big-endian. Little-endian GGUFs from Hugging Face won't
+  load. Per [llama.cpp docs/build-s390x.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build-s390x.md),
+  convert the safetensors on the VM: `python convert_hf_to_gguf.py <model_dir> --outtype q8_0 --bigendian` (or
+  `--outtype f16`). Q4_0/Q4_K/Q5_K/Q6_K/Q8_0 have s390x SIMD paths; avoid Q2_K/IQ2/IQ3 (slow scalar fallback).
+- On Windows, test with a normal little-endian Granite GGUF (`ibm-granite/granite-3.3-2b-instruct-GGUF`).
+- The template backend plus the grounding guard keep the demo working if the model fails.
 
 ## Known differences to watch
 
