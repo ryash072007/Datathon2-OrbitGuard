@@ -93,3 +93,16 @@ def test_forecast_service_reports_decision_layer(tmp_path):
     assert out["status"] == "ready" and out["action"] in {"ACT", "WAIT", "MONITOR"}
     assert out["interval_log10_pc"][0] <= out["predicted_log10_pc"] <= out["interval_log10_pc"][1]
     assert svc._decision_layer(rows[["event_id", "time_to_tca", "risk"]])["status"] == "unavailable"
+
+
+def test_paired_bootstrap_shape_and_undefined_counted():
+    # 3 events, one high-risk: resamples without it have undefined L and must be counted, not dropped
+    true = np.array([-4.0, -4.5, -8.0, -9.0, -8.5, -9.5])
+    naive = np.array([-4.0, -8.0, -8.0, -9.0, -8.5, -9.5])
+    pred = np.array([-4.0, -4.5, -8.0, -9.0, -5.0, -9.5])
+    out = D.paired_bootstrap(true, naive, pred, repeats=200, seed=1)
+    e = out["metrics"]["L"]
+    assert out["repeats"] == 200 and set(out["metrics"]) == {"L", "mse_hr", "f2", "precision"}
+    assert e["n_undefined"] > 0
+    assert e["ci95_lo"] <= e["ci95_hi"] and 0.0 <= e["frac_A_better"] <= 1.0
+    assert out["metrics"]["f2"]["n_undefined"] == 0

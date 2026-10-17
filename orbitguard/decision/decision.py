@@ -381,7 +381,44 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def cmd_eval(path: Path, evidence_path: Path = EVIDENCE_PATH) -> dict:
+_BOOT_METRICS = {"L": "lower", "mse_hr": "lower", "f2": "higher", "precision": "higher"}
+
+
+def paired_bootstrap(true: np.ndarray, naive_pred: np.ndarray, pred: np.ndarray,
+                     repeats: int = 1000, seed: int = RANDOM_STATE) -> dict:
+    """Paired bootstrap over events of delta = metric(A) - metric(naive), using ``evaluate.metrics`` (ESA L).
+
+    Resamples where either L is undefined (no high-risk event, or F2 = 0 so L = inf) are counted per metric in
+    ``n_undefined`` and excluded only from that metric's CI, never silently."""
+    true, naive_pred, pred = (np.asarray(x, dtype=float) for x in (true, naive_pred, pred))
+    rng = np.random.default_rng(seed)
+    n = len(true)
+    deltas = {k: np.full(repeats, np.nan) for k in _BOOT_METRICS}
+    for b in range(repeats):
+        i = rng.integers(0, n, n)
+        ma, mn = metrics(true[i], pred[i]), metrics(true[i], naive_pred[i])
+        for k in _BOOT_METRICS:
+            d = ma[k] - mn[k]
+            deltas[k][b] = d if np.isfinite(d) else np.nan
+    out = {"repeats": int(repeats), "seed": int(seed), "n_events": int(n), "metrics": {}}
+    for k, better in _BOOT_METRICS.items():
+        d = deltas[k]
+        ok = d[np.isfinite(d)]
+        entry = {"better": better, "n_undefined": int(repeats - len(ok))}
+        if len(ok):
+            wins = (ok < 0) if better == "lower" else (ok > 0)
+            entry.update(point=float(metrics(true, pred)[k] - metrics(true, naive_pred)[k]),
+                         ci95_lo=float(np.percentile(ok, 2.5)), ci95_hi=float(np.percentile(ok, 97.5)),
+                         frac_A_better=float(wins.mean()))
+        else:
+            entry.update(point=None, ci95_lo=None, ci95_hi=None, frac_A_better=None)
+        if entry["point"] is not None and not np.isfinite(entry["point"]):
+            entry["point"] = None
+        out["metrics"][k] = entry
+    return out
+
+
+def cmd_eval(path: Path, evidence_path: Path = EVIDENCE_PATH, bootstrap_repeats: int = 1000) -> dict:
     import json
     import platform
     import time
@@ -409,6 +446,14 @@ def cmd_eval(path: Path, evidence_path: Path = EVIDENCE_PATH) -> dict:
                  for a in ("ACT", "WAIT", "MONITOR")}
     for a, b in breakdown.items():
         print(f"{a:8} {b['events']:5d} events, {b['high_risk_events']:4d} of {int(hr.sum())} high-risk")
+    boot = paired_bootstrap(true, tab["naive_risk"].to_numpy(dtype=float), pred, bootstrap_repeats)
+    print(f"paired bootstrap, {boot['repeats']} resamples of {boot['n_events']} events (delta = A - naive):")
+    for k, e in boot["metrics"].items():
+        if e["point"] is None or e["ci95_lo"] is None:
+            print(f"  d{k}: undefined in {e['n_undefined']} resamples")
+            continue
+        print(f"  d{k}: {e['point']:+.4f}  95% CI [{e['ci95_lo']:+.4f}, {e['ci95_hi']:+.4f}]  "
+              f"A better in {e['frac_A_better']:.1%}  undefined {e['n_undefined']}")
     from sklearn.metrics import average_precision_score, brier_score_loss
     sha_after = _sha256(path)
     if sha_after != sha_before:
@@ -421,7 +466,7 @@ def cmd_eval(path: Path, evidence_path: Path = EVIDENCE_PATH) -> dict:
         "p_high": {"average_precision": float(average_precision_score(hr, p)), "brier": float(brier_score_loss(hr, p)),
                    "note": "Calibrated logistic regression (isotonic, 5-fold) on decision features; P(final risk >= -6)."},
         "interval": {"nominal": 0.8, "empirical_coverage": coverage, "mean_width_log10": width},
-        "actions": breakdown,
+        "actions": breakdown, "bootstrap": boot,
         "fingerprints": {"decision_sha256_before_labels": sha_before, "decision_sha256_after_evaluation": sha_after},
         "platform": {"architecture": platform.machine(), "python": platform.python_version()},
         "evaluated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -443,8 +488,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["fit", "eval"])
     ap.add_argument("--path", type=Path, default=DECISION_PATH)
+    ap.add_argument("--bootstrap-repeats", type=int, default=1000)
     a = ap.parse_args()
-    cmd_fit(a.path) if a.cmd == "fit" else cmd_eval(a.path)
+    cmd_fit(a.path) if a.cmd == "fit" else cmd_eval(a.path, bootstrap_repeats=a.bootstrap_repeats)
 
 
 if __name__ == "__main__":
