@@ -20,3 +20,9 @@ venv/
 
 # organiser documents (kept locally, not published)
 *.pdf
+
+# SSH keys and credentials - never commit
+*.pem
+*.key
+id_rsa*
+id_ed25519*
