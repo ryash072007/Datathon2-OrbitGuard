@@ -31,3 +31,5 @@ id_ed25519*
 video/.venv-tts/
 video/out/
 video/.cache/
+video/.venv-rec/
+video/.venv-orpheus/
