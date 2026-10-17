@@ -1,7 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDownToLine, ExternalLink, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
-import { G, POLICIES, Empty, Loading, Notice, Status, Term, Tip, useAsync, useTokens } from './ui';
+import { ArrowDownToLine, BookOpen, Compass, ExternalLink, Loader2, Moon, Pause, Play, RefreshCw, Sun } from 'lucide-react';
+import { G, POLICIES, Empty, Loading, Notice, Status, Term, Tip, applyTheme, readTheme, useAsync, useTokens } from './ui';
+import type { ThemeName } from './ui';
+import { Starfield } from './Starfield';
+import { Guide, TryThis, dismissGuide, guideDismissed, reopenGuide } from './Guide';
+import { Glossary } from './Glossary';
 import { PolicyBars, PopulationChart, RankingCurve } from './Charts';
 import { AuditPanel, DecisionCard, DecisionEvidence, LiveCatalogue, OperatorActions, PlatformEvidence } from './Live';
 
@@ -46,7 +50,7 @@ function RealTimeStrip() {
   const f = lat?.stages?.forecast, p = lat?.platform;
   const where = p ? (p.is_linuxone ? `${p.machine} (IBM LinuxONE)` : `${p.machine} (development machine, not LinuxONE)`) : '—';
   return <div className="rt-strip" role="status" aria-label="Real-time decision latency"><div className="rt-inner">
-    <span className="rt-label"><span className={`dot ${f ? 'on' : ''}`}/>Real time</span>
+    <span className="rt-label"><span className={`dot ${f ? 'on' : ''}`}/><Tip text="How long the server took to forecast and decide on recent warnings, measured live on this server."><span className="term">Real time</span></Tip></span>
     <span>Last decision <strong>{f ? `${number(f.last_ms, 1)} ms` : '—'}</strong></span>
     <span>median {f ? `${number(f.p50_ms, 1)} ms` : '—'}</span>
     <span>p95 <strong>{f ? `${number(f.p95_ms, 1)} ms` : '—'}</strong></span>
@@ -65,7 +69,14 @@ export default function App() {
     return () => window.removeEventListener('hashchange', follow);
   }, []);
   const onLinuxONE = health.data?.architecture === 's390x';
+  const [theme, setThemeState] = useState<ThemeName>(readTheme);
+  const [guideShown, setGuideShown] = useState(() => !guideDismissed());
+  const [glossary, setGlossary] = useState(false);
+  const switchTheme = () => {const next: ThemeName = theme === 'dark' ? 'light' : 'dark'; applyTheme(next); setThemeState(next);};
+  const goTab = (next: Tab) => {setTab(next); window.scrollTo(0, 0);};
+  const showGuide = () => {reopenGuide(); setGuideShown(true); window.scrollTo(0, 0);};
   return <div className="app">
+    <Starfield/>
     <header className="topbar"><div className="topbar-inner">
       <a className="brand" href="#encounters" onClick={e => {e.preventDefault(); setTab('encounters');}}><OrbitMark/>OrbitGuard</a>
       <nav className="tabs" aria-label="Sections">{TABS.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => {setTab(id); window.scrollTo(0, 0);}}>{label}</button>)}</nav>
@@ -77,9 +88,16 @@ export default function App() {
           ? `Every forecast and screening on this page is computed on an IBM LinuxONE virtual machine (${health.data.architecture}, ${health.data.available_cpus ?? '?'} CPUs). The browser only displays the results.`
           : `Running on a ${health.data.architecture} development machine, not LinuxONE.`) : 'Checking the connection to the OrbitGuard server.'}/>
       </div>
+      <div className="header-tools">
+        <button className="btn small tool" aria-label="Show the guide" onClick={showGuide}><Compass size={15}/><span className="tool-label">Guide</span></button>
+        <button className="btn small tool" aria-label="Open key terms" aria-expanded={glossary} onClick={() => setGlossary(open => !open)}><BookOpen size={15}/><span className="tool-label">Key terms</span></button>
+        <button className="btn small tool" aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} onClick={switchTheme}>{theme === 'dark' ? <Sun size={15}/> : <Moon size={15}/>}</button>
+      </div>
     </div><RealTimeStrip/></header>
+    <Glossary open={glossary} onClose={() => setGlossary(false)}/>
     <main className="page">
       {health.error && <Notice retry={health.retry}>Cannot reach the OrbitGuard server: {health.error}</Notice>}
+      {guideShown && <Guide tab={tab} setTab={goTab} onGlossary={() => setGlossary(true)} onHide={() => {dismissGuide(); setGuideShown(false);}}/>}
       {tab === 'overview' ? <Overview/> : tab === 'encounters' ? <Encounters/> : tab === 'planning' ? <Planning/> : tab === 'live' ? <LiveCatalogue/> : <Validation/>}
     </main>
   </div>;
@@ -109,6 +127,7 @@ function Overview() {
   const planner = physics.benchmark;
   return <>
     <Intro title="Understand the risk. Check the whole orbit." action={<EvidenceDownload data={data}/>}>OrbitGuard helps an operator decide what to do about a close approach: how likely it is, whether an avoidance burn creates a second hazard, and what a collision would cost everyone else in orbit. Start with the evidence below, then explore historical forecasts, a synthetic stress test or the live catalogue.</Intro>
+    <p className="page-note">The method behind each page, and what the evidence does and does not support.</p>
     <div className="overview-tracks three">
       <section className="card track"><span className="tag">Historical ESA data</span><h2>Forecast a later risk estimate</h2><p>Use only messages available at least 48 hours before closest approach to estimate ESA's final reported collision probability. Replay a held-out encounter and compare the baseline with the learned forecast.</p><a className="btn" href="#encounters">Explore encounters</a></section>
       <section className="card track"><span className="tag">Synthetic simulation</span><h2>Test a manoeuvre against every object</h2><p>Compare no burn, avoiding one object, and OrbitGuard's screening of every nearby object. Check fuel cost, uncertainty sensitivity and a finer numerical re-check before accepting a plan.</p><a className="btn" href="#planning">Open manoeuvre planning</a></section>
@@ -179,6 +198,7 @@ function Encounters() {
     <Intro title="Encounters">
       Historical close approaches from the held-out test set of ESA's Collision Avoidance Challenge. Each encounter is a series of <Term k="cdm">conjunction data messages</Term> issued in the days before two objects pass closest. Select one to replay its messages and compare forecasts of the <Term k="final">final reported collision probability</Term>.
     </Intro>
+    <TryThis tab="encounters" steps={['Pick an encounter from the list; the highest risk is at the top.', 'Press Play stream to replay its messages in order.', 'Read the decision card: Act, Wait or Monitor, and the reasons behind it.']}/>
     {list.error && <Notice retry={list.retry}>{list.error}</Notice>}
     <div className="encounters-layout">
       <section className="card list-card" aria-label="Encounter list">
@@ -337,6 +357,7 @@ function Planning() {
     <Intro title="Manoeuvre planning">
       Synthetic simulation, separate from the historical ESA forecast. OrbitGuard tries 37 candidate burns for satellite A, checks each one against every nearby object, and recommends the smallest acceptable burn below the <Term k="limit">risk limit</Term>. A burn that avoids one object can steer into another; the first scenario demonstrates this failure mode.
     </Intro>
+    <TryThis tab="planning" steps={['Choose a scenario; the first one shows the trap.', 'Press Screen manoeuvres.', 'Select a policy row, then jump to each closest approach in the orbital view.']}/>
     <section className="card toolbar">
       <label className="field"><span>Scenario</span>
         <select aria-label="Scenario" value={selected} disabled={busy || !scenarios.length} onChange={e => setSelected(e.target.value)}>
@@ -574,6 +595,7 @@ function Validation() {
     <Intro title="Validation" action={<div className="actions"><EvidenceDownload data={data}/><button className="btn small" disabled={loading} onClick={retry}><RefreshCw size={13} className={loading ? 'spin' : ''}/> Reload</button></div>}>
       Checks of the forecasting model, collision-probability maths and manoeuvre planner, plus measured speed. Every result is read from evaluation artifacts; the runtime section identifies the machine where timing was recorded. The header identifies the currently connected server.
     </Intro>
+    <p className="page-note">Use this page to check a claim: each figure names where it was measured, and missing results are shown as unavailable.</p>
     {error && <Notice retry={retry}>{error}</Notice>}
     {loading ? <Loading label="Loading evaluation results"/> : <>
 

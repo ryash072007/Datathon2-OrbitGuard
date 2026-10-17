@@ -74,6 +74,17 @@ export function useAsync<T>(path: string | null, deps: unknown[] = []) {
   const current = state.path === path;
   return {data: current ? state.data : null, loading: Boolean(path) && (!current || state.loading), error: current ? state.error : '', retry: () => setReload(v => v + 1)};
 }
+export type ThemeName = 'dark' | 'light';
+/** The console defaults to the dark space theme; the choice is kept in localStorage. */
+export function readTheme(): ThemeName {
+  try {return localStorage.getItem('og-theme') === 'light' ? 'light' : 'dark';} catch {return 'dark';}
+}
+export function applyTheme(theme: ThemeName) {
+  document.documentElement.dataset.theme = theme;
+  try {localStorage.setItem('og-theme', theme);} catch {/* storage unavailable (private mode): the choice lasts for this page only */}
+  window.dispatchEvent(new Event('og-theme'));
+}
+
 /** Chart colours come from CSS tokens so light and dark themes stay in one place. */
 export function useTokens() {
   const read = () => {
@@ -86,7 +97,8 @@ export function useTokens() {
     const media = matchMedia('(prefers-color-scheme: dark)');
     const update = () => setTokens(read());
     media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
+    window.addEventListener('og-theme', update);
+    return () => {media.removeEventListener('change', update); window.removeEventListener('og-theme', update);};
   }, []);
   return tokens;
 }

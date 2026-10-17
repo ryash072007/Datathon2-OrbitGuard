@@ -90,6 +90,7 @@ export default function Globe({orbits, markers, focus, height = 460, label, fitR
     const media = matchMedia('(prefers-color-scheme: dark)');
     const retheme = () => {const t = readTheme(); const material = earth.material as THREE.MeshBasicMaterial; material.map?.dispose(); material.map = earthTexture(t.ocean, t.land, t.grid); material.needsUpdate = true;};
     media.addEventListener('change', retheme);
+    window.addEventListener('og-theme', retheme);
 
     let frame = 0;
     const toCamera = new THREE.Vector3();
@@ -122,6 +123,7 @@ export default function Globe({orbits, markers, focus, height = 460, label, fitR
       cancelAnimationFrame(frame);
       observer.disconnect();
       media.removeEventListener('change', retheme);
+      window.removeEventListener('og-theme', retheme);
       controls.dispose();
       renderer.dispose();
       scene.traverse(o => {const mesh = o as THREE.Mesh; mesh.geometry?.dispose?.(); const m = mesh.material as THREE.Material | undefined; m?.dispose?.();});

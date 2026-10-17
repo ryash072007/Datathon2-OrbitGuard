@@ -5,6 +5,7 @@ import { Empty, G, Loading, Notice, Status, Term, Tip, useAsync } from './ui';
 import { finite, fixed, logProbability, number, percent, post, probability, request } from './api';
 import type { Json } from './api';
 import { AskOrbitGuard, SecondOpinion } from './AiEvidence';
+import { TryThis } from './Guide';
 
 const ISS = 25544;
 const DIRECTIONS: Record<string, string> = {'+T': 'Prograde', '-T': 'Retrograde', '+R': 'Radial out', '-R': 'Radial in', '+N': 'Cross-track +', '-N': 'Cross-track −'};
@@ -233,6 +234,7 @@ export function LiveCatalogue() {
     <div className="intro"><div><h1>Live catalogue</h1><p className="lead">
       Real orbits for every tracked object from CelesTrak, screened on LinuxONE. Find a satellite's closest approach in the next three days, test 145 candidate burns against the whole catalogue with the same <Term k="pc">Pc</Term> maths validated on NASA's reference cases, and see what a collision would cost. The operator makes the call.
     </p></div></div>
+    <TryThis tab="live" steps={['Keep 25544 (the ISS) or enter another NORAD number, then press Find and screen.', 'Read the Recommendation, then compare the Candidate burns and what happens If they collide.', 'Read the Operator brief, ask a question, then record Accept, Defer or Reject in the audit trail.']}/>
     <section className="card controls" aria-label="Run an analysis">
       <label>Satellite (NORAD) <input className="search" list="live-sats" value={input} onChange={e => setInput(e.target.value)} inputMode="numeric"/></label>
       <datalist id="live-sats">{(events.data?.events || []).map((e: Json) => <option key={e.norad} value={e.norad}>{e.name}</option>)}</datalist>
