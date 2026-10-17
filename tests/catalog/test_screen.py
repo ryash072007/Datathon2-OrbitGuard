@@ -123,3 +123,14 @@ def test_burn_grid_shape():
     g = burn_grid(tca, 92.0)
     assert len(g) == 6 * 6 * 4 + 1
     assert g[-1].direction == "none" and sum(b.analytic_seed for b in g) == 2 * 6 * 4
+
+
+def test_docked_vehicle_with_stale_tle_is_co_orbiting():
+    # Real CelesTrak pair from 2026-10-17: Progress MS-34 docked at the ISS, its TLE 0.32 d older than the station's.
+    # Raw RAANs differ by 1.6 deg; after J2 nodal regression to a common epoch they agree.
+    from orbitguard.catalog.catalog import co_orbiting, record_from_tle
+    iss = record_from_tle("ISS", "1 25544U 98067A   26290.49943124  .00006695  00000+0  12995-3 0  9999",
+                          "2 25544  51.6327  54.8173 0006780 275.4148  84.6066 15.48907033590718")
+    progress = record_from_tle("PROGRESS", "1 68837U 26093A   26290.17683437  .00008767  00000+0  16757-3 0  9996",
+                               "2 68837  51.6327  56.4129 0006776 273.6806  86.3408 15.48906925587450")
+    assert co_orbiting(iss, progress) and co_orbiting(progress, iss)

@@ -5,6 +5,7 @@ cached file is older than ``MAX_AGE_H`` hours (CelesTrak rate-limits repeat down
 """
 from __future__ import annotations
 
+import datetime as _dt
 import math
 import os
 import sys
@@ -155,14 +156,31 @@ def load_catalog(groups: tuple[str, ...] = GROUPS, cache_dir: Path | None = None
     return records
 
 
+def _raan_rate_deg_per_day(n_rev_per_day: float, inc_deg: float, ecc: float) -> float:
+    """Secular J2 regression of the ascending node, in degrees per day."""
+    mu_km3_s2, re_km, j2 = 398600.4418, 6378.137, 1.08262668e-3
+    n_rad_s = n_rev_per_day * 2.0 * math.pi / 86400.0
+    a_km = (mu_km3_s2 / n_rad_s ** 2) ** (1.0 / 3.0)
+    p_km = a_km * (1.0 - ecc ** 2)
+    rate_rad_s = -1.5 * n_rad_s * j2 * (re_km / p_km) ** 2 * math.cos(math.radians(inc_deg))
+    return math.degrees(rate_rad_s) * 86400.0
+
+
 def co_orbiting(a: CatalogRecord, b: CatalogRecord) -> bool:
     """True for objects sharing essentially the same orbit (docked/attached modules, e.g. ISS elements).
 
     Such pairs sit permanently within metres-to-km of each other, which is not a conjunction.
     """
-    def el(r: CatalogRecord) -> tuple[float, float, float]:
-        return float(r.line2[8:16]), float(r.line2[17:25]), float(r.line2[52:63])
-    ia, ra, na = el(a)
-    ib, rb, nb = el(b)
+    # The two TLEs can have different epochs (a docked vehicle's elements are often updated less often than the
+    # station's), so b's node is moved to a's epoch with the J2 nodal regression rate before comparing.
+    def el(r: CatalogRecord) -> tuple[float, float, float, float, float]:
+        yy, doy = int(r.line1[18:20]), float(r.line1[20:32])
+        year = 2000 + yy if yy < 57 else 1900 + yy
+        epoch_days = (_dt.date(year, 1, 1).toordinal() - 1) + doy  # days on a common scale; only differences used
+        return (float(r.line2[8:16]), float(r.line2[17:25]), float(r.line2[52:63]),
+                float("0." + r.line2[26:33].strip()), epoch_days)
+    ia, ra, na, ea, ta = el(a)
+    ib, rb, nb, eb, tb = el(b)
+    rb += _raan_rate_deg_per_day(nb, ib, eb) * (ta - tb)
     d_raan = abs((ra - rb + 180.0) % 360.0 - 180.0)
     return abs(ia - ib) < 0.05 and d_raan < 0.05 and abs(na - nb) < 0.005
