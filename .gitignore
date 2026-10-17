@@ -15,3 +15,17 @@ artifacts/
 *.egg-info/
 .orbitguard_known_hosts
 video/out/
+
+# combined repo
+.venv/
+data/
+models/
+legacy/**/__pycache__/
+video/assembly/.venv-*/
+video/assembly/out/
+video/assembly/.cache/
+*.joblib
+*.zip
+*.pdf
+id_rsa*
+id_ed25519*
