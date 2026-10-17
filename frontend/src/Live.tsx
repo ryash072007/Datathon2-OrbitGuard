@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, Clock, Eye, Hourglass, Loader2, Play, RefreshCw, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import { Disclosure, Empty, G, Loading, Notice, Odds, SectionNav, Status, Term, Tip, plainOdds, useAsync } from './ui';
@@ -7,6 +7,7 @@ import { finite, fixed, logProbability, number, percent, post, probability, requ
 import type { Json } from './api';
 import { AskOrbitGuard, SecondOpinion } from './AiEvidence';
 import { TryThis, markStep } from './Guide';
+const DebrisGlobe = lazy(() => import('./DebrisGlobe'));
 
 const ISS = 25544;
 const DIRECTIONS: Record<string, string> = {'+T': 'Prograde', '-T': 'Retrograde', '+R': 'Radial out', '-R': 'Radial in', '+N': 'Cross-track +', '-N': 'Cross-track −'};
@@ -166,11 +167,12 @@ function BurnTable({top}: {top: Json[]}) {
   </table></div>;
 }
 
-function Consequence({cons}: {cons?: Json}) {
+function Consequence({cons, norad}: {cons?: Json, norad?: number}) {
   if (!cons) return <Empty title="Consequence not computed"/>;
   const groups = Object.entries<number>(cons.exposed_by_constellation || {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const max = groups.length ? groups[0][1] : 1;
   return <>
+    {norad && <Suspense fallback={<Loading label="Loading 3D view"/>}><DebrisGlobe norad={norad}/></Suspense>}
     <div className="figures">
       <div className="figure"><span className="figure-label">Fragments ≥ 10 cm <Tip text="NASA Standard Breakup Model power law with masses assumed by object type. Validated against three real break-ups (predicted/catalogued 0.35–0.77), so use it for ranking, not absolute counts."/></span><strong>{number(cons.fragments_true, 0)}</strong><span className="small muted">{cons.catastrophic ? 'Catastrophic' : 'Non-catastrophic'} break-up</span></div>
       <div className="figure"><span className="figure-label">Satellites put at risk <Tip text="Active LEO satellites expecting at least one pass within 1 km of a fragment over 30 days (kinetic-gas density model, J2 spreading, no drag)."/></span><strong>{number(cons.n_sats_ge1_encounter, 0)}</strong><span className="small muted">of {number(cons.n_sats_considered, 0)} active in LEO</span></div>
@@ -336,7 +338,7 @@ export function LiveCatalogue() {
         <div ref={burnsRef}><BurnTable top={f.burns?.top || []}/></div>
       </Section>
       <Section id="sec-collide" title="If they collide" label="Consequence" sub="What a collision at this closest approach would do to everyone else in orbit over 30 days.">
-        <Consequence cons={f.consequence}/>
+        <Consequence cons={f.consequence} norad={f.event?.primary?.norad}/>
       </Section>
       <div id="sec-brief" className="stack">
         <Section title={<>Operator brief <Tip text="Written by IBM Granite 3.3 2B running on the LinuxONE box (big-endian GGUF through llama.cpp) when LLM_BACKEND=llamacpp. A grounding guard extracts every number and checks it against the computed facts; any invented number switches to a deterministic template."/></>} label="Operator brief"

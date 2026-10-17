@@ -426,6 +426,54 @@ def create_blueprint() -> Blueprint:
             raise FileNotFoundError(f"no analysis for NORAD {norad}; POST /api/live/analyse first")
         return jsonify(f)
 
+    def debris_job(norad: int, facts: dict, path: Path) -> Callable[[], None]:
+        def fn() -> None:
+            from datetime import datetime
+            from orbitguard.catalog.catalog import load_catalog
+            from orbitguard.catalog.parallel import default_workers
+            from orbitguard.consequence.event import Params
+            from orbitguard.consequence.viz import debris_payload
+            records = load_catalog()
+            by_id = {r.norad: r for r in records}
+            ev = facts["event"]
+            for who in ("primary", "threat"):
+                if ev[who]["norad"] not in by_id:
+                    raise ValueError(f"{who} NORAD {ev[who]['norad']} is no longer in the catalogue")
+            out = debris_payload(by_id[ev["primary"]["norad"]], by_id[ev["threat"]["norad"]],
+                                 datetime.fromisoformat(ev["tca_utc"]), ev["miss_km"], records, Params(),
+                                 workers=default_workers())
+            out["facts_sha256"] = _sha(facts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
+            tmp.replace(path)
+        return fn
+
+    @bp.get("/api/live/debris")
+    def debris():
+        """Simulated fragment cloud for the cached analysis: 200 payload, or 202 while it is computed (poll this URL)."""
+        from orbitguard.brief.facts import load_cached_facts
+        raw = request.args.get("norad", str(ISS_NORAD))
+        if not raw.isdigit() or not 0 < int(raw) < 10_000_000:
+            raise ValueError("norad must be a positive integer NORAD catalogue number")
+        norad = int(raw)
+        f = load_cached_facts(norad)
+        if f is None:
+            return jsonify({"error": {"code": "no_analysis",
+                                      "message": f"no analysis for NORAD {norad}; POST /api/live/analyse first"}}), 404
+        path = _out() / f"debris_{norad}_{_sha(f)[:16]}.json"
+        if path.exists():
+            return jsonify(_read_json(path))
+        key = f"debris:{norad}"
+        job = jobs.snapshot()["jobs"].get(key)
+        if job and job["state"] == "error":
+            err = job["error"]
+            jobs.start(key, debris_job(norad, f, path), f"debris cloud for NORAD {norad}")  # retry on next poll
+            return jsonify({"error": {"code": "debris_failed", "message": err}}), 500
+        started = jobs.start(key, debris_job(norad, f, path), f"debris cloud for NORAD {norad}")
+        return jsonify({"status": "running", "started": started, "key": key,
+                        "poll": f"/api/live/debris?norad={norad}"}), 202
+
     @bp.route("/api/live/brief/<int:norad>", methods=["GET", "POST"])
     def brief(norad: int):
         from orbitguard.brief.facts import load_cached_facts
