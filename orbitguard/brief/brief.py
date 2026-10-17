@@ -16,6 +16,7 @@ class Brief:
     backend_used: str
     grounded: bool
     issues: list[str] = field(default_factory=list)
+    guardian: dict = field(default_factory=lambda: {"status": "not applicable (deterministic template)"})
 
 
 def make_brief_from_facts(facts: dict, backend: Backend | str | None = None) -> Brief:
@@ -30,10 +31,20 @@ def _audit(facts: dict, brief: Brief) -> None:
         import hashlib
         sha = lambda t: hashlib.sha256(t.encode("utf-8")).hexdigest()
         log_event("brief", {"backend": brief.backend_used, "grounded": brief.grounded, "issues": brief.issues,
+                           "guardian": brief.guardian,
                            "facts_sha256": sha(canonical(facts)), "brief_sha256": sha(brief.text)})
     except Exception as exc:  # noqa: BLE001
         import sys
         print(f"[audit log failed: {exc}]", file=sys.stderr)
+
+
+def _guardian(text: str, facts: dict) -> dict:
+    """Second guard layer (never raises): Granite Guardian groundedness of ``text`` against the LLM's fact view."""
+    import json
+
+    from .backends import llm_view
+    from .guardian import check_groundedness
+    return check_groundedness(json.dumps(llm_view(facts), separators=(",", ":"), default=str), text)
 
 
 def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
@@ -47,7 +58,14 @@ def _generate(facts: dict, backend: Backend | str | None = None) -> Brief:
             text = be.generate(build_prompt(facts), facts)
             bad = check_grounding(text, facts)
             if not bad:
-                return Brief(text, name, True, [])
+                guard = _guardian(text, facts)
+                if not guard.get("flagged"):
+                    return Brief(text, name, True, [], guard)
+                issues.append(f"fallback: Granite Guardian flagged the {name} brief as not grounded "
+                              f"(p_risk={guard.get('p_risk')})")
+                text = render_template(facts)
+                bad = check_grounding(text, facts)
+                return Brief(text, "template", not bad, issues + ([f"ungrounded numbers {bad}"] if bad else []), guard)
             issues.append(f"fallback: {name} output had ungrounded numbers {bad}")
         else:
             text = be.generate("", facts)

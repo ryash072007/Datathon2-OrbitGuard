@@ -5,14 +5,26 @@
 # /opt/venv python, i.e. inside the datathon2 container, or a venv from vm_setup.sh). Idempotent.
 #   docker: sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v ~/IBM-Datathon:/work -v ~/granite_work:/granite_work \
 #             -e WORK=/granite_work -w /work --entrypoint "" datathon2 bash scripts/convert_granite_bigendian.sh
+# Granite Guardian (groundedness check, orbitguard/brief/guardian.py) converts the same way:
+#   HF_REPO=ibm-granite/granite-guardian-3.2-3b-a800m OUT=artifacts/llm/granite-guardian-3.2-3b-a800m-q8_0-be.gguf
+#     bash scripts/convert_granite_bigendian.sh      (or shortcut: MODEL=guardian bash scripts/convert_granite_bigendian.sh)
+# OUTTYPE (default q8_0) is passed to the converter, e.g. OUTTYPE=bf16.
 # Does NOT pip-install anything: torch/transformers/numpy come from the image, and the `gguf` package is taken
 # from the llama.cpp checkout (gguf-py) so the converter and the library always match.
 set -euo pipefail
 # Fixed llama.cpp release tag (has Granite 3.x and --bigendian). Override with LLAMA_TAG=... if the tag is missing.
 LLAMA_TAG="${LLAMA_TAG:-b11707}"
-HF_REPO="${HF_REPO:-ibm-granite/granite-3.3-2b-instruct}"
+MODEL="${MODEL:-granite}"   # granite (default) | guardian: presets for HF_REPO / OUT / ENV_NAME below
+case "$MODEL" in
+  granite)  _REPO=ibm-granite/granite-3.3-2b-instruct; _OUT=artifacts/llm/granite-3.3-2b-instruct-q8_0-be.gguf; _ENV=LLM_MODEL_PATH ;;
+  guardian) _REPO=ibm-granite/granite-guardian-3.2-3b-a800m; _OUT=artifacts/llm/granite-guardian-3.2-3b-a800m-q8_0-be.gguf; _ENV=GUARDIAN_MODEL_PATH ;;
+  *) echo "MODEL must be granite or guardian (or set HF_REPO and OUT directly)"; exit 2 ;;
+esac
+HF_REPO="${HF_REPO:-$_REPO}"
+ENV_NAME="${ENV_NAME:-$_ENV}"
+OUTTYPE="${OUTTYPE:-q8_0}"
 WORK="${WORK:-$HOME/granite_work}"
-OUT="${OUT:-artifacts/llm/granite-3.3-2b-instruct-q8_0-be.gguf}"
+OUT="${OUT:-$_OUT}"
 PY="${PYTHON:-python}"
 mkdir -p "$WORK" "$(dirname "$OUT")"
 
@@ -35,7 +47,7 @@ else
     export PYTHONPATH="$WORK/stubs:$PYTHONPATH"
   fi
 
-  MODEL_DIR="$WORK/granite-hf"
+  if [ "$HF_REPO" = "ibm-granite/granite-3.3-2b-instruct" ]; then MODEL_DIR="$WORK/granite-hf"; else MODEL_DIR="$WORK/$(basename "$HF_REPO")-hf"; fi
   if [ ! -f "$MODEL_DIR/.complete" ]; then
     "$PY" - "$HF_REPO" "$MODEL_DIR" <<'PYEOF'
 import sys
@@ -48,9 +60,9 @@ PYEOF
   fi
 
   if [ "${PREPARE_ONLY:-0}" = "1" ]; then echo "prepared (clone + download); skipping conversion"; exit 0; fi
-  # q8_0 straight from safetensors; the converter reads tensors lazily, so peak RAM stays well below the 8 GB.
+  # $OUTTYPE (q8_0 by default) straight from safetensors; the converter reads tensors lazily, so peak RAM stays well below the 8 GB.
   tmp="$OUT.part"
-  "$PY" "$WORK/llama.cpp/convert_hf_to_gguf.py" "$MODEL_DIR" --outtype q8_0 --bigendian --outfile "$tmp"
+  "$PY" "$WORK/llama.cpp/convert_hf_to_gguf.py" "$MODEL_DIR" --outtype "$OUTTYPE" --bigendian --outfile "$tmp"
   mv "$tmp" "$OUT"
 fi
 
@@ -58,7 +70,7 @@ ls -lh "$OUT"
 cat <<EOF
 
 Set these before running the brief or dashboard:
-  export LLM_BACKEND=llamacpp
-  export LLM_MODEL_PATH=$PWD/$OUT
+  export $ENV_NAME=$PWD/$OUT
+  export LLM_BACKEND=llamacpp          # only for the Granite 3.3 instruct model
 Test:  python -m orbitguard.brief.run --primary 25544
 EOF

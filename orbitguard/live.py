@@ -114,7 +114,7 @@ def _brief_path(norad: int) -> Path:
 def make_and_cache_brief(facts: dict, backend: str | None = None) -> dict:
     from orbitguard.brief.brief import make_brief_from_facts
     b = make_brief_from_facts(facts, backend)
-    d = {"text": b.text, "backend_used": b.backend_used, "grounded": b.grounded, "issues": b.issues,
+    d = {"text": b.text, "backend_used": b.backend_used, "grounded": b.grounded, "issues": b.issues, "guardian": b.guardian,
          "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
          "facts_generated_utc": facts.get("generated_utc")}
     p = _brief_path(facts["event"]["primary"]["norad"])
@@ -243,6 +243,17 @@ def create_blueprint() -> Blueprint:
         started = jobs.start(f"analyse:{norad}", analyse_job(norad, float(target_km)),
                              f"screening NORAD {norad} against the catalogue")
         return jsonify({"started": started, "key": f"analyse:{norad}", "poll": "/api/live/status"}), 202
+
+    @bp.post("/api/live/ask")
+    def ask_route():
+        from orbitguard.brief.agent import MAX_QUESTION_CHARS, ask
+        payload = body()
+        question, norad = payload.get("question"), payload.get("norad")
+        if not isinstance(question, str) or not question.strip() or len(question) > MAX_QUESTION_CHARS:
+            raise ValueError(f"question must be a nonempty string of at most {MAX_QUESTION_CHARS} characters")
+        if norad is not None and (isinstance(norad, bool) or not isinstance(norad, int) or not 0 < norad < 10_000_000):
+            raise ValueError("norad must be a positive integer NORAD catalogue number or null")
+        return jsonify(ask(question, norad))
 
     @bp.get("/api/live/facts/<int:norad>")
     def facts(norad: int):
