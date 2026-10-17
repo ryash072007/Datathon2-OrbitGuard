@@ -12,7 +12,7 @@ set -euo pipefail
 LLAMA_TAG="${LLAMA_TAG:-b11707}"
 HF_REPO="${HF_REPO:-ibm-granite/granite-3.3-2b-instruct}"
 WORK="${WORK:-$HOME/granite_work}"
-OUT="${OUT:-models/llm/granite-3.3-2b-instruct-q8_0-be.gguf}"
+OUT="${OUT:-artifacts/llm/granite-3.3-2b-instruct-q8_0-be.gguf}"
 PY="${PYTHON:-python}"
 mkdir -p "$WORK" "$(dirname "$OUT")"
 

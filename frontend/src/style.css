@@ -337,3 +337,56 @@ a { color: var(--accent-ink); }
 .replay-timeline ol { padding-inline-start: 20px; }
 .replay-timeline li { padding-block: 6px; }
 .replay-timeline li > span { display: block; }
+
+/* ---------------------------------------------------------------- combined console: live catalogue, decision layer, audit */
+:root { --warn: #a66300; --warn-soft: #fbf1e1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --warn: #e0a54a; --warn-soft: #2e2516; } }
+:root[data-theme="dark"] { --warn: #e0a54a; --warn-soft: #2e2516; }
+.overview-tracks.three { grid-template-columns: repeat(3, 1fr); }
+.good-text { color: var(--good); }
+.bad-text { color: var(--bad); }
+.controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 18px; margin-bottom: 16px; }
+.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
+.controls .search { min-width: 140px; }
+.controls .search.narrow { min-width: 0; width: 90px; }
+.chips { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.job-line { display: inline-flex; align-items: center; gap: 5px; }
+.job-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.badges { display: inline-flex; align-items: center; gap: 8px; }
+.badges .tag { margin-left: 0; }
+.figures.four { grid-template-columns: repeat(4, 1fr); }
+.figure strong.small-figure { font-size: 15px; }
+.figure strong.interval { font-size: 17px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.two-col > .section { margin: 0; }
+.list-scroll.short { max-height: 380px; overflow: auto; }
+.operator { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 12px; margin-top: 4px; border-top: 1px solid var(--border); }
+.operator svg { vertical-align: -2px; }
+.decision { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; }
+.decision-act { border-left-color: var(--bad); }
+.decision-wait { border-left-color: var(--warn); }
+.decision-monitor { border-left-color: var(--st-neutral); }
+.decision-head { display: flex; align-items: center; gap: 12px; }
+.decision-head p { color: var(--text-2); }
+.decision .operator { border-top: none; padding-top: 0; margin-top: 0; }
+.action-badge { display: inline-block; padding: 2px 9px; border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.action-badge.act { background: var(--bad-soft); color: var(--bad); }
+.action-badge.wait { background: var(--warn-soft); color: var(--warn); }
+.action-badge.monitor { background: var(--surface-2); color: var(--text-2); }
+.bars { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; max-width: 640px; }
+.bar-row { display: grid; grid-template-columns: 140px 1fr 70px; align-items: center; gap: 10px; font-size: 13px; }
+.bar-row .bar { height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.bar-row .bar span { display: block; height: 100%; background: var(--series-2); }
+.brief { max-width: 80ch; }
+.brief h3 { font-size: 14px; font-weight: 600; margin: 14px 0 4px; }
+.brief h3:first-child { margin-top: 0; }
+.brief p, .brief li { color: var(--text-2); font-size: 14px; line-height: 1.55; }
+.brief ul { padding-left: 20px; }
+.audit { list-style: none; display: flex; flex-direction: column; }
+.audit li { display: grid; grid-template-columns: 52px 84px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.audit li:last-child { border-bottom: none; }
+.audit .kind { font-size: 12px; font-weight: 500; padding: 1px 6px; border-radius: 4px; background: var(--surface-2); color: var(--text-2); justify-self: start; }
+.audit .kind.operator { background: var(--accent-soft); color: var(--accent-ink); }
+.audit .kind.screen { background: var(--warn-soft); color: var(--warn); }
+@media (max-width: 1000px) { .overview-tracks.three, .two-col { grid-template-columns: 1fr; } .figures.four { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) { .figures.four { grid-template-columns: 1fr; } .audit li { grid-template-columns: 44px 1fr; } .bar-row { grid-template-columns: 100px 1fr 56px; } }

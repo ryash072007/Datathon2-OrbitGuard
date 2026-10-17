@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ArrowDownToLine, ExternalLink, Loader2, Pause, Play, RefreshCw } from 'lucide-react';
 import { G, POLICIES, Empty, Loading, Notice, Status, Term, Tip, useAsync, useTokens } from './ui';
 import { PolicyBars, PopulationChart, RankingCurve } from './Charts';
+import { AuditPanel, DecisionCard, DecisionEvidence, LiveCatalogue, OperatorActions, PlatformEvidence } from './Live';
 
 // The 3D views pull in three.js, so they load on first use rather than with the page.
 const OrbitalView = lazy(() => import('./Visuals').then(m => ({default: m.OrbitalView})));
@@ -12,8 +13,8 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { finite, fixed, logProbability, number, percent, post, powerOfTen, probability, request } from './api';
 import type { Json } from './api';
 
-type Tab = 'overview' | 'encounters' | 'planning' | 'validation';
-const TABS: [Tab, string][] = [['encounters', 'Encounters'], ['planning', 'Manoeuvre planning'], ['validation', 'Validation'], ['overview', 'How it works']];
+type Tab = 'overview' | 'encounters' | 'planning' | 'live' | 'validation';
+const TABS: [Tab, string][] = [['encounters', 'Encounters'], ['planning', 'Manoeuvre planning'], ['live', 'Live catalogue'], ['validation', 'Validation'], ['overview', 'How it works']];
 
 const METHOD_NAMES: Record<string, string> = {
   clipped_latest_baseline: 'Latest reported value (ESA baseline)',
@@ -51,7 +52,7 @@ export default function App() {
     </div></header>
     <main className="page">
       {health.error && <Notice retry={health.retry}>Cannot reach the OrbitGuard server: {health.error}</Notice>}
-      {tab === 'overview' ? <Overview/> : tab === 'encounters' ? <Encounters/> : tab === 'planning' ? <Planning/> : <Validation/>}
+      {tab === 'overview' ? <Overview/> : tab === 'encounters' ? <Encounters/> : tab === 'planning' ? <Planning/> : tab === 'live' ? <LiveCatalogue/> : <Validation/>}
     </main>
   </div>;
 }
@@ -79,10 +80,11 @@ function Overview() {
   const cases: Json[] = physics.validation?.cases || [];
   const planner = physics.benchmark;
   return <>
-    <Intro title="Understand the risk. Check the whole orbit." action={<EvidenceDownload data={data}/>}>OrbitGuard helps an operator inspect close approaches and test whether an avoidance burn creates a second hazard. Start with the evidence below, then explore the historical forecasts or run a synthetic planning scenario.</Intro>
-    <div className="overview-tracks">
+    <Intro title="Understand the risk. Check the whole orbit." action={<EvidenceDownload data={data}/>}>OrbitGuard helps an operator decide what to do about a close approach: how likely it is, whether an avoidance burn creates a second hazard, and what a collision would cost everyone else in orbit. Start with the evidence below, then explore historical forecasts, a synthetic stress test or the live catalogue.</Intro>
+    <div className="overview-tracks three">
       <section className="card track"><span className="tag">Historical ESA data</span><h2>Forecast a later risk estimate</h2><p>Use only messages available at least 48 hours before closest approach to estimate ESA's final reported collision probability. Replay a held-out encounter and compare the baseline with the learned forecast.</p><a className="btn" href="#encounters">Explore encounters</a></section>
-      <section className="card track"><span className="tag">Synthetic simulation</span><h2>Test a manoeuvre against every object</h2><p>Compare no burn, avoiding one object, and OrbitGuard's screening of every nearby object. Check fuel cost, uncertainty sensitivity and a finer numerical re-check before accepting a plan.</p><a className="btn primary" href="#planning">Open manoeuvre planning</a></section>
+      <section className="card track"><span className="tag">Synthetic simulation</span><h2>Test a manoeuvre against every object</h2><p>Compare no burn, avoiding one object, and OrbitGuard's screening of every nearby object. Check fuel cost, uncertainty sensitivity and a finer numerical re-check before accepting a plan.</p><a className="btn" href="#planning">Open manoeuvre planning</a></section>
+      <section className="card track"><span className="tag">Real CelesTrak catalogue</span><h2>Screen a real satellite, see the cost</h2><p>Find a satellite's next close approach among about 18,000 tracked objects, screen 145 burns with the same validated Pc rule, model the debris a collision would create, and read a Granite-written brief whose numbers are checked against the computation.</p><a className="btn primary" href="#live">Open the live catalogue</a></section>
     </div>
     <section className="card section" aria-label="Evidence at a glance">
       <div className="card-head"><div><h2>What the evidence supports</h2><p className="muted small">Read directly from the server's evaluation artifacts. Missing results stay explicitly unavailable.</p></div><button className="btn small" disabled={loading} onClick={retry}><RefreshCw size={13} className={loading ? 'spin' : ''}/> Reload</button></div>
@@ -188,6 +190,7 @@ function Encounters() {
             <div className="figure muted-figure"><span className="figure-label">Final reported value <Tip text={G.final}/></span><strong>{logProbability(reference)}</strong><span className="small muted">Revealed for comparison</span></div>
           </div>
           {forecast?.error && <Notice retry={() => setReplayAttempt(current => current + 1)}>{forecast.error}</Notice>}
+          <DecisionCard decision={forecast?.decision} eventId={selected}/>
           {updates.length > 0 && <section className="replay-timeline" aria-label="Update processing timeline">
             <h3 className="subhead">Update → forecast → alert</h3>
             <p className="small muted">Historical replay, not a live feed. Each step waits for the server before continuing. Alert changes compare consecutive message prefixes, even when you scrub.</p>
@@ -391,6 +394,7 @@ function Recommendation({result, busy, job, primaryId}: {result: Json | null, bu
       <div><dt>Numerical re-check <Tip text={G.verify}/></dt><dd>{verification ? <Status ok={verification.status === 'passed'}>{verification.status === 'passed' ? 'Passed' : verification.status === 'rejected' ? 'Rejected: risk limit exceeded' : 'Failed'}</Status> : '—'}</dd></div>
     </dl>
     {job?.job_id && <a className="btn small" href={`/api/runs/${job.job_id}`} download><ArrowDownToLine size={14}/> Download screening result</a>}
+    <OperatorActions context="planning" reference={`${result.scenario_id}:${rec?.candidate_id || 'abstained'}`} recommendation={{status: result.status, candidate: rec?.candidate_id, delta_v_mps: rec?.delta_v_mps, worst_pc: chosen.worst_pc}}/>
   </section>;
 }
 
@@ -564,6 +568,7 @@ function Validation() {
       <TriageEvidence evaluation={ml.triage_evaluation}/>
     </section>
 
+    <DecisionEvidence evaluation={ml.decision_evaluation}/>
     <AccuracyAudit audit={ml.accuracy_audit}/>
     <GuardEvidence evaluation={ml.guard_evaluation}/>
     <section className="card section">
@@ -600,6 +605,9 @@ function Validation() {
       </table></div> : <Empty title="Timing results not available">Run the runtime benchmark on the server.</Empty>}
       {runtime.parallel_comparison && <p className="finding"><strong>Parallel screening:</strong> {runtime.parallel_comparison.workloads} scenarios took {number(runtime.parallel_comparison.serial_seconds, 1)} s one at a time and {number(runtime.parallel_comparison.parallel_seconds, 1)} s across {runtime.parallel_comparison.workers} CPU cores, {number(runtime.parallel_comparison.speedup, 2)}× faster.</p>}
     </section>
+
+    <PlatformEvidence/>
+    <AuditPanel/>
 
     <section className="card section">
       <div className="section-head"><div><h2>Data, provenance and limits</h2></div></div>

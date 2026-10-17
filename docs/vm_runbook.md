@@ -1,52 +1,57 @@
-# VM runbook (final session)
+# VM runbook (combined OrbitGuard)
 
-Do these in order on the LinuxONE VM. Note the first failure and move on; the template brief keeps the demo alive.
-Keep SSH keys (`*.pem`) outside the repo directory; `vm_setup.sh` warns if one is inside.
+Run these in order on the LinuxONE VM from `~/orbitguard`. Note the first failure and move on; the template brief
+keeps the demo working without the LLM. Keep SSH keys (`*.pem`) outside the repo directory.
 
-1. **Setup**: `bash scripts/vm_setup.sh` then `source .venv/bin/activate`.
-   Expect a pinned-vs-installed table and `machine: s390x big`.
-2. **Tests**: `python -m pytest tests -q`. Expect all passed (43 on Windows).
-3. **Demo prep**: `python scripts/demo.py --no-serve` (data, decision fit, ISS screen, survey, network, facts).
-   Expect a timing summary and `data/out/demo_timings_<host>.json`. Add `--quick` if short on time.
-4. **Granite conversion** (10-20 min; use `tmux`): `bash scripts/convert_granite_bigendian.sh`.
-   Expect `models/llm/granite-3.3-2b-instruct-q8_0-be.gguf` (about 2.7 GB) and two `export` lines. Run them.
-5. **LLM brief**: `python -m orbitguard.brief.run --primary 25544`. Expect backend `llamacpp` and a grounded result.
-   On error, use `LLM_BACKEND=template` and say so.
-6. **Benchmark**: `python -m orbitguard.catalog.run --primary 25544 --target-km 10 --benchmark`.
-   Expect `benchmark workers=N ... speedup=` lines and `data/out/speedup_<host>.json`. Keep `htop` open in a second terminal.
-7. **Container (official base)**: `docker build -t datathon2 .` then
-   `docker run -d --name datathon2 -p 8080:8080 -v $PWD/data:/app/data -v $PWD/models:/app/models -e LLM_BACKEND=llamacpp -e LLM_MODEL_PATH=/app/models/llm/granite-3.3-2b-instruct-q8_0-be.gguf datathon2`.
-   Expect `docker ps` to show `healthy` after about 30 s, and `curl -s -o /dev/null -w "%{http_code}" localhost:8080/` to print 200.
-   Without Docker: `python scripts/demo.py --llm`.
-8. **Evidence**: `bash scripts/evidence.sh`. Expect `docs/evidence/<timestamp>/` with lscpu, byte order, nproc, benchmark and timings. Then commit `docs/evidence`.
-9. **Screenshots** (save into `docs/evidence/`)
+1. **Sync and bootstrap.** From the laptop, run `python3 scripts/linuxone.py sync --host <VM_IP> --key key.pem` (this
+   ships the source and the built console). Then on the VM, run `bash scripts/bootstrap-linuxone.sh`. Expect
+   `"is_linuxone": true` and no sgp4 assertion error.
+2. **Tests.** `.venv/bin/python -m pytest -q`. Expect everything to pass (skips only for artefacts not built yet).
+3. **Data.** `.venv/bin/orbitguard fetch-data && .venv/bin/orbitguard prepare-data`. If the VM cannot reach ESA,
+   run `fetch-data` on the laptop, then `scripts/linuxone.py sync-data`.
+4. **Evidence pipeline** (about 15 minutes; use `tmux`): `bash scripts/run-linuxone-pipeline.sh`. The step log is
+   `artifacts/pipeline/status.log`. Use `SKIP_CATALOGUE=1` if CelesTrak is unreachable. Keep `htop` open in a
+   second terminal during `screen-live --benchmark` and take a screenshot of it.
+5. **Service.** `sudo cp deploy/orbitguard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now orbitguard`.
+   Then, from the laptop: `python3 scripts/linuxone.py tunnel --host <VM_IP> --key key.pem` and open http://localhost:8080.
+   The header should read **IBM LinuxONE · s390x**.
+6. **Live analysis for the demo.** `.venv/bin/orbitguard brief --primary 25544 --cdm-event 8 --target-km 10`
+   (or press **Find and screen** in the Live catalogue tab). Set `TLE_MAX_AGE_H=1e9` to freeze the TLE snapshot
+   between takes.
+7. **Granite** (optional, 10 to 20 minutes): `bash scripts/convert_granite_bigendian.sh` inside the Jupyter ML
+   image (see below). Then set `LLM_BACKEND=llamacpp` and `LLM_MODEL_PATH=.../granite-3.3-2b-instruct-q8_0-be.gguf`
+   in the unit file, restart the service, and press **Regenerate** on the brief. It runs at about 1 token/s on
+   3 vCPUs, so generate the brief before recording.
+8. **NNPA.** Inside the image: `python -m orbitguard nnpa-bench` (add `-e BENCH_HOST=$(hostname)`). This writes
+   `artifacts/nnpa/nnpa_bench_<host>.json`, which the Validation page shows.
+9. **Container.** `docker build -t orbitguard .` then
+   `docker run -d --name orbitguard -p 8080:8080 -v $PWD/artifacts:/app/artifacts orbitguard`.
+   Expect `docker ps` to show `healthy`.
+10. **Evidence.** `bash scripts/evidence.sh` writes `docs/evidence/<timestamp>/` (lscpu, byte order, NNPA flag,
+    containers, speed-up, NNPA, pipeline log, evidence JSON, audit verification). Commit `docs/evidence`.
 
-   | Shot | Where |
-   | --- | --- |
-   | `lscpu` showing s390x; byte order `big` | VM shell |
-   | `htop` with all cores busy during `--benchmark` | second terminal |
-   | Speed-up table (workers vs speedup) | benchmark output |
-   | `docker ps` showing `datathon2` healthy | VM shell |
-   | Footer: arch s390x, byte order big | bottom of `http://<vm>:8080` |
-   | Event picker, risk and Act/Wait/Monitor decision | top panels |
-   | Burn options table, consequence bar chart | middle panels |
-   | Super-spreaders table and network picture | lower panels |
-   | Brief with backend `llamacpp` and grounded badge | brief panel |
+## Screenshots for the judges (save into `docs/evidence/`)
 
-## What actually worked on the VM (z17, 3 vCPU, 8 GB; measured 17 Oct)
+| Shot | Where |
+| --- | --- |
+| `lscpu` (s390x, big-endian) and `grep nnpa /proc/cpuinfo` | VM shell |
+| `htop` with every core busy during `screen-live --benchmark` | second terminal |
+| `docker ps` healthy, `systemctl status orbitguard` | VM shell |
+| Header "IBM LinuxONE · s390x" plus the Encounters replay with Act/Wait/Monitor | console |
+| Synthetic planning: pair-only creates a hazard with C, OrbitGuard does not | Manoeuvre planning |
+| Live catalogue: recommendation, burn table, consequence, Granite brief (grounded badge) | Live catalogue |
+| Platform section (NNPA table, speed-up), decision evidence, audit chain intact | Validation |
 
-All commands run in the `datathon2` image (host Python lacks TF/torch/llama_cpp). Shorthand:
-`D="sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e DATA_DIR=/work/data -e TLE_MAX_AGE_H=1e9 -v ~/IBM-Datathon:/work -w /work --entrypoint '' datathon2"`.
+## What worked on the VM before the merge (z17, 3 vCPU, 8 GB; measured 17 Oct)
 
-- **NNPA benchmark**: `$D python -m orbitguard.nnpa.bench` (add `-e BENCH_HOST=$(hostname)` to the docker line so the JSON is named after
-  the VM and not the container id). Takes about 2 minutes. Writes `data/out/nnpa_bench_<host>.json` and `models/nnpa_mlp.keras`.
-  Result: 1.06x at 1k rows, 1.6x at 10k, 2.1x at 100k, 2.7x at 1M (about 0.41M to 1.10M rows/s); max |dprob| 0.0015.
-- **Granite big-endian**: pre-fetch (I/O only) with `PREPARE_ONLY=1`, then convert; about 8 minutes, peak RAM fine:
-  `sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e WORK=/granite_work -v ~/IBM-Datathon:/work -v ~/granite_work:/granite_work -w /work --entrypoint '' datathon2 bash scripts/convert_granite_bigendian.sh`
-  Output: `models/llm/granite-3.3-2b-instruct-q8_0-be.gguf` (2.7 GB).
-- **Brief**: `LLM_BACKEND=llamacpp LLM_MODEL_PATH=/work/models/llm/granite-3.3-2b-instruct-q8_0-be.gguf` gives
-  `backend: llamacpp | grounded: True`, but only about 1 token/s with 3 threads (511 tokens took 523 s, prompt 611 tokens).
-  `data/out/brief_granite_vm.json` holds it. Pre-generate the brief before recording the video, or lower `max_tokens`.
-- **Dashboard container**: `sudo docker run -d --name d2dash --restart unless-stopped --user $(id -u):$(id -g) -p 8080:8080 -e HOME=/tmp -e DATA_DIR=/work/data -e TLE_MAX_AGE_H=1e9 -e LLM_BACKEND=llamacpp -e LLM_MODEL_PATH=/work/models/llm/granite-3.3-2b-instruct-q8_0-be.gguf -v ~/IBM-Datathon:/work -w /work --entrypoint '' datathon2 python -m legacy.flask_dashboard.run`.
-  `curl localhost:8080/api/status` returns 200 with `machine: s390x`, `byteorder: big`. Reach it with `ssh -L 8080:localhost:8080 ...`; no firewall change.
+These ran in the official Jupyter ML image (the host Python lacks TF/torch/llama_cpp). Shorthand:
+`D="sudo docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -e TLE_MAX_AGE_H=1e9 -v ~/orbitguard:/work -w /work --entrypoint '' <image>"`.
+
+- **NNPA benchmark** took about 2 minutes. Results: 1.06x at 1k rows, 1.6x at 10k, 2.1x at 100k, 2.7x at 1M (about
+  0.41M to 1.10M rows/s); max |dprob| 0.0015.
+- **Granite big-endian:** prefetch with `PREPARE_ONLY=1`, then convert. It took about 8 minutes and produced a 2.7 GB q8_0 GGUF.
+  Mount a work directory outside the repo (`-v ~/granite_work:/granite_work -e WORK=/granite_work`).
+- **Brief:** `backend: llamacpp | grounded: True`, but only about 1 token/s with 3 threads (511 tokens in 523 s).
+- **sgp4:** with no s390x wheel the pure-Python fallback made the screener about 70x slower (939 s). The bootstrap
+  and Dockerfile now build the C extension.
 - Part C (llama.cpp built with zDNN) was skipped for time.

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 
-from .brief import make_brief_from_facts
 from .facts import collect_facts, save_facts
 
 
@@ -20,10 +19,11 @@ def main(argv: list[str] | None = None) -> int:
     facts = collect_facts(args.primary, args.threat, args.cdm_event, days=args.days, target_km=args.target_km,
                           workers=args.workers)
     path = save_facts(facts)
-    brief = make_brief_from_facts(facts, args.backend)
-    print(brief.text)
+    from orbitguard.live import make_and_cache_brief  # also caches it for the console
+    brief = make_and_cache_brief(facts, args.backend)
+    print(brief["text"])
     print()
-    print(f"[backend: {brief.backend_used} | grounded: {brief.grounded} | issues: {brief.issues or 'none'}]")
+    print(f"[backend: {brief['backend_used']} | grounded: {brief['grounded']} | issues: {brief['issues'] or 'none'}]")
     print(f"facts: {path}; collect timings (s): "
           + ", ".join(f"{k}={v:.1f}" for k, v in facts["timings_s"].items()))
     return 0

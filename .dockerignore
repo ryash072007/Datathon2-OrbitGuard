@@ -3,8 +3,12 @@
 venv
 data
 models
-docs/evidence
+artifacts
+docs
 tests
+video
+frontend/node_modules
+frontend/dist
 emu
 *.zip
 *.pdf

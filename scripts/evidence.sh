@@ -29,12 +29,19 @@ fi >"$OUT/secure_execution.txt"
   have podman && { echo "# podman ps"; podman ps 2>&1 || true; }
   have docker || have podman || echo "no container runtime found"; } >"$OUT/containers.txt"
 
-# Benchmark and demo timings come from earlier runs (python -m orbitguard.catalog.run --benchmark; scripts/demo.py).
-DATA="${DATA_DIR:-data}/out"
-for pat in 'speedup_*.json' 'demo_timings_*.json'; do
+# Benchmark and demo timings come from earlier runs (orbitguard screen-live --benchmark; orbitguard nnpa-bench; scripts/demo.py).
+DATA="${DATA_DIR:-artifacts/live}/out"
+for pat in 'speedup_*.json' 'demo_timings_*.json' 'network_*.json'; do
   f="$(ls -t "$DATA"/$pat 2>/dev/null | head -n 1)"
   if [ -n "$f" ]; then cp "$f" "$OUT/"; else echo "none found: $DATA/$pat (run the benchmark / demo first)" >>"$OUT/missing.txt"; fi
 done
+
+f="$(ls -t artifacts/nnpa/nnpa_bench_*.json 2>/dev/null | head -n 1)"
+if [ -n "$f" ]; then cp "$f" "$OUT/"; else echo "none found: artifacts/nnpa/nnpa_bench_*.json (run orbitguard nnpa-bench)" >>"$OUT/missing.txt"; fi
+for f in artifacts/pipeline/status.log artifacts/ml/evidence.json artifacts/ml/decision_evidence.json artifacts/physics/validation.json; do
+  [ -f "$f" ] && cp "$f" "$OUT/$(echo "$f" | tr '/' '_')"
+done
+"$PY" -m orbitguard audit-verify >"$OUT/audit_verify.txt" 2>&1 || true
 
 echo "Evidence saved to $OUT"
 echo "  arch:    $(cat "$OUT/machine_byteorder.txt" 2>/dev/null)"

@@ -36,7 +36,9 @@ def fetch(root):
     for name,expected_size,expected_crc in [('train_data.zip',87718091,0xaa9c3d81),('test_data.csv',35303060,0xd0184cc0)]:
         p=data/name
         if not p.exists() or p.stat().st_size!=expected_size:
-            subprocess.run(['/usr/bin/curl' if Path('/usr/bin/curl').exists() else 'curl','--fail','--location','--retry','3','--continue-at','-','--connect-timeout','20','--max-time','1200','--output',str(p),ESA_BASE+name],check=True)
+            # The ESA server ignores byte ranges, so a partial file cannot be resumed: start again.
+            if p.exists(): p.unlink()
+            subprocess.run(['/usr/bin/curl' if Path('/usr/bin/curl').exists() else 'curl','--fail','--location','--retry','3','--connect-timeout','20','--max-time','1200','--output',str(p),ESA_BASE+name],check=True)
         if p.stat().st_size!=expected_size or crc(p)!=expected_crc: raise ValueError(f'Official archive CRC/size mismatch: {name}')
         sources.append({'file':name,'source_url':ESA_BASE+name,'bytes':p.stat().st_size,'sha256':digest(p),'official_archive_crc32':f'{expected_crc:08x}','crc_verified':True})
     with zipfile.ZipFile(data/'train_data.zip') as z:
