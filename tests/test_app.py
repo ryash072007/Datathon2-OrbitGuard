@@ -79,3 +79,24 @@ def test_globe_and_replay_endpoints(client, data_fixture, facts):
     html = client.get("/").get_data(as_text=True)
     assert "What if it collides? (3D)" in html and "Real-time decision replay" in html
     assert "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" in html
+
+
+def test_markdown_html_escapes_and_renders():
+    from src.app.charts import markdown_html
+    h = markdown_html("## Situation\nA <b>x</b> and **bold**.\n\n- one\n- two\n\n1. first\n2. second")
+    assert "<h3>Situation</h3>" in h and "&lt;b&gt;" in h and "<strong>bold</strong>" in h
+    assert h.count("<li>") == 4 and "<ul>" in h and "<ol>" in h and "##" not in h
+
+
+def test_network_scatter_labels_and_axes():
+    from src.app.charts import network_svg
+    nodes = [{"norad": i, "name": f"N{i}", "type": "PAYLOAD", "degree": 1, "score": 1 - i / 10,
+              "perigee_km": 500 + 10 * i, "apogee_km": 520 + 10 * i, "inclination_deg": 50 + 5 * i} for i in range(6)]
+    svg = network_svg(nodes, [{"a": 0, "b": 1, "steps": 1}])
+    assert "mean altitude (km)" in svg and "inclination (deg)" in svg and "payload" in svg and svg.count("<circle") >= 6
+
+
+def test_risk_panel_always_has_decision(client):
+    html = client.get("/").get_data(as_text=True)
+    assert "Historical ESA warning example" in html or "Decision model unavailable" in html
+    assert "<h2>Situation</h2>" not in html and "## Situation" not in html

@@ -8,8 +8,9 @@
  body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f3f4f6;color:#111827}
  header{background:#0f172a;color:#fff;padding:12px 20px}
  header h1{margin:0;font-size:20px} header p{margin:2px 0 0;font-size:13px;color:#cbd5e1}
- main{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;padding:14px;max-width:1500px;margin:auto}
- section{background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+ main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:14px;max-width:1500px;margin:auto;box-sizing:border-box}
+ @media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+ section{min-width:0;overflow:hidden;background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
  section.wide{grid-column:1/-1}
  h2{font-size:15px;margin:0 0 8px} table{border-collapse:collapse;width:100%;font-size:13px}
  th,td{padding:3px 6px;border-bottom:1px solid #e5e7eb;text-align:left} th{background:#f9fafb}
@@ -31,10 +32,19 @@
  .ctl{margin:6px 0} .ctl button{margin-right:6px;background:#1e293b;color:#e2e8f0;border:1px solid #334155}
  .ctl button.on{background:#2563eb;border-color:#2563eb} .ctl label{margin-left:10px;font-size:13px}
  .ctl2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0} .ctl2 select{padding:4px}
- .rp-grid{display:grid;grid-template-columns:minmax(300px,3fr) minmax(260px,2fr);gap:14px;align-items:start}
+ .rp-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
  .card{border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:13px;background:#f9fafb}
  .card .big{font-size:20px;font-weight:700} .card ul{margin:6px 0 0 16px;padding:0}
  .card.final{border-color:#111827;background:#f3f4f6}
+ .badge.xl{font-size:22px;font-weight:700;padding:6px 18px;border-radius:8px;letter-spacing:1px}
+ .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+ .kv div{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px 8px;font-size:12px;color:#6b7280}
+ .kv b{display:block;font-size:17px;color:#111827}
+ .net-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:14px;align-items:start}
+ .brief-body h2{font-size:15px;margin:12px 0 4px;color:#0f172a;border-bottom:1px solid #e5e7eb;padding-bottom:2px}
+ .brief-body h2:first-child{margin-top:0}
+ .brief-body p,.brief-body li{font-size:14px;line-height:1.5;margin:4px 0}
+ .brief-body ul,.brief-body ol{margin:4px 0 4px 20px;padding:0}
  .tag{font-size:11px;padding:1px 5px;border-radius:4px;background:#e5e7eb;margin-left:3px}
 </style>
 </head>
@@ -67,16 +77,21 @@
 
 <section id="risk">
  <h2>2. Risk and decision</h2>
- {% if facts %}
-  <p>Live collision probability (public TLEs, assumed error): <b>{{ '%.1e'|format(facts.risk.live_pc) }}</b></p>
-  {% if decision and decision.action %}
-   <p>Decision layer on a <span class="tag">historical CDM example</span> (ESA event {{ decision.cdm_event_id }};
-   live TLE events have no CDMs):</p>
-   <p><span class="badge {{ decision.action|lower }}">{{ decision.action }}</span>
-   predicted log10 Pc {{ '%.2f'|format(decision.predicted_risk_log10_pc) }}, P(high) {{ '%.2f'|format(decision.p_high) }}</p>
-   <ul>{% for r in decision.reasons %}<li class="muted">{{ r }}</li>{% endfor %}</ul>
-  {% else %}<p class="muted">No historical decision example in this analysis.</p>{% endif %}
- {% else %}<p class="muted">Run the analysis first.</p>{% endif %}
+ {% if facts %}<p>Live collision probability (public TLEs, assumed error): <b>{{ '%.1e'|format(facts.risk.live_pc) }}</b></p>
+ {% else %}<p class="muted">Live collision probability appears after the analysis is run.</p>{% endif %}
+ {% if decision and decision.action %}
+  <p class="muted" style="margin:8px 0 6px"><span class="tag">Historical ESA warning example (live TLE events have no CDMs)</span>
+  event {{ decision.cdm_event_id }}</p>
+  <div><span class="badge xl {{ decision.action|lower }}">{{ decision.action }}</span>
+   <span class="muted">&nbsp;recommended action (Act / Wait / Monitor)</span></div>
+  <div class="kv">
+   <div>P(high risk)<b>{{ '%.0f'|format(100 * decision.p_high) }}%</b></div>
+   <div>Latest CDM log10 Pc<b>{{ '%.2f'|format(decision.latest_risk_log10_pc) }}</b></div>
+   <div>Predicted log10 Pc<b>{{ '%.2f'|format(decision.predicted_risk_log10_pc) }}</b></div>
+  </div>
+  <p class="muted" style="margin:0 0 4px">80% interval: {{ '%.1f'|format(decision.interval_log10_pc[0]) }} to {{ '%.1f'|format(decision.interval_log10_pc[1]) }} (log10 Pc). Reasons:</p>
+  <ul style="margin:0 0 0 18px;padding:0">{% for r in decision.reasons %}<li class="muted">{{ r }}</li>{% endfor %}</ul>
+ {% else %}<p class="muted">Decision model unavailable: ESA CDM data or trained model not found on this machine.</p>{% endif %}
 </section>
 
 <section id="burns" class="wide">
@@ -119,17 +134,19 @@
  <button class="run" data-url="/api/run/survey">Run survey (20 events)</button>
 </section>
 
-<section id="network">
+<section id="network" class="wide">
  <h2>6. Super-spreaders</h2>
  {% if net %}
   <p class="muted">{{ net.summary.n_objects }} objects, {{ net.summary.n_edges }} close-approach pairs within {{ net.params.r_km }} km over
   {{ net.params.hours }} h; {{ net.summary.n_components }} components (largest {{ net.summary.largest_component }}).
-  Sweep {{ '%.1f'|format(net.timings.sweep_wall_s) }} s on {{ net.timings.workers|int }} workers.</p>
+  Sweep {{ '%.1f'|format(net.timings.sweep_wall_s) }} s on {{ net.timings.workers|int }} workers. Plot: top 60 by score, lines = close approaches.</p>
+  <div class="net-grid">
   <table><tr><th>#</th><th>Name</th><th>Type</th><th>Degree</th><th>Score</th></tr>
   {% for n in net_top %}<tr><td>{{ n.rank }}</td><td>{{ n.name }}</td><td>{{ n.type }}</td><td>{{ n.degree }}</td><td>{{ '%.3f'|format(n.score) }}</td></tr>{% endfor %}</table>
-  {{ net_svg|safe }}
+  <div>{{ net_svg|safe }}</div>
+  </div>
  {% else %}<p class="muted">No network computed yet.</p>{% endif %}
- <button class="run" data-url="/api/run/network">{{ 'Re-run network sweep' if net else 'Run network sweep' }}</button>
+ <button class="run" data-url="/api/run/network" style="margin-top:8px">{{ 'Re-run network sweep' if net else 'Run network sweep' }}</button>
 </section>
 
 <section id="globe" class="wide dark">
@@ -152,7 +169,7 @@
 <section id="replay" class="wide">
  <h2>Real-time decision replay</h2>
  <p class="muted">Historical ESA conjunction (test set, never used for training). CDMs arrive one by one; the decision layer
- sees only what had arrived so far. Closest approach is at the right edge.</p>
+ sees only what had arrived so far. Time runs left to right towards closest approach.</p>
  <div class="ctl2">
   <select id="rp-event"></select>
   <button id="rp-play">Play</button><button id="rp-step">Step</button><button id="rp-reset">Reset</button>
@@ -166,7 +183,7 @@
   {% if brief %}<span class="badge">{{ brief.backend_used }}</span>
   <span class="badge {{ 'good' if brief.grounded else 'bad' }}">{{ 'grounded' if brief.grounded else 'NOT grounded' }}</span>{% endif %}</h2>
  {% if brief %}
-  <pre class="brief">{{ brief.text }}</pre>
+  <div class="brief-body">{{ brief_html|safe }}</div>
   {% if brief.issues %}<p class="muted">Guard notes: {{ brief.issues|join('; ') }}</p>{% endif %}
  {% else %}<p class="muted">{{ 'Run the analysis first.' if not facts else 'Brief not generated yet.' }}</p>{% endif %}
  {% if facts %}<button id="regen">Generate brief ({{ llm_backend }})</button>{% endif %}
@@ -334,42 +351,54 @@ async function getJsonWhenReady(url, tries = 90) {
   const sel = document.getElementById('rp-event'), chart = document.getElementById('rp-chart'), card = document.getElementById('rp-card');
   const COL = {MONITOR: '#2563eb', WAIT: '#d97706', ACT: '#dc2626'};
   let steps = [], fin = null, idx = 0, timer = null;
-  const ymin = -12, ymax = -3;
+  const ymin = -14, ymax = -3, YB = -15.2;          // YB = bottom of the "approximately zero" band
+  const fmt = r => r <= ymin ? '≤ −14 (≈ 0)' : r.toFixed(2);
   function draw() {
     if (!steps.length) return;
-    const W = 560, H = 270, L = 44, Rr = 14, T = 14, B = 66, pw = W - L - Rr, ph = H - T - B;
-    const t0 = steps[0].time_to_tca_days;
-    const X = t => L + pw * (t0 - t) / Math.max(t0, 1e-6);          // right edge = closest approach (t = 0)
-    const Y = r => T + ph * (ymax - Math.max(ymin, Math.min(ymax, r))) / (ymax - ymin);
+    const W = 760, H = 360, L = 52, Rr = 20, T = 14, B = 92, pw = W - L - Rr, ph = H - T - B;
+    const t0 = Math.ceil(steps[0].time_to_tca_days);
+    const X = t => L + pw * (t0 - t) / t0;                           // right edge = closest approach (t = 0)
+    const Y = r => r <= ymin ? T + ph * (ymax - (ymin - 0.6)) / (ymax - YB) : T + ph * (ymax - r) / (ymax - YB);
+    const clamped = r => r <= ymin;
+    const COLR = i => COL[steps[i].action];
     let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="risk over time">';
-    for (let v = -12; v <= -3; v += 3) s += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#e5e7eb"/><text x="' + (L - 4) + '" y="' + (Y(v) + 4) + '" font-size="10" text-anchor="end">' + v + '</text>';
-    s += '<text x="12" y="' + (T + ph / 2) + '" font-size="10" transform="rotate(-90 12 ' + (T + ph / 2) + ')" text-anchor="middle">log10 Pc (latest CDM)</text>';
+    s += '<rect x="' + L + '" y="' + Y(ymin) + '" width="' + pw + '" height="' + (T + ph - Y(ymin)) + '" fill="#f3f4f6"/>';
+    s += '<text x="' + (W - Rr - 6) + '" y="' + (T + ph - 5) + '" text-anchor="end" font-size="10" fill="#6b7280">≤ −14 (≈ zero): hollow markers are clamped to this band</text>';
+    for (let v = -4; v >= ymin; v -= 2) s += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="#e5e7eb"/><text x="' + (L - 5) + '" y="' + (Y(v) + 4) + '" font-size="10" text-anchor="end">' + v + '</text>';
+    s += '<rect x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '" fill="none" stroke="#9ca3af"/>';
+    s += '<text x="12" y="' + (T + ph / 2) + '" font-size="11" transform="rotate(-90 12 ' + (T + ph / 2) + ')" text-anchor="middle">log10 Pc (latest CDM)</text>';
+    const dstep = t0 > 8 ? 2 : 1;
+    for (let d = t0; d >= 0; d -= dstep) s += '<line x1="' + X(d) + '" x2="' + X(d) + '" y1="' + T + '" y2="' + (T + ph) + '" stroke="#f1f5f9"/><text x="' + X(d) + '" y="' + (T + ph + 14) + '" font-size="10" text-anchor="middle">' + (d === 0 ? 'TCA' : d + ' d') + '</text>';
+    s += '<text x="' + (L + pw / 2) + '" y="' + (T + ph + 28) + '" font-size="11" text-anchor="middle">time to closest approach (days, decreasing to the right)</text>';
     s += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + Y(-6) + '" y2="' + Y(-6) + '" stroke="#dc2626" stroke-dasharray="5 4"/><text x="' + (L + 4) + '" y="' + (Y(-6) - 4) + '" font-size="10" fill="#dc2626">-6 threshold</text>';
-    const by = T + ph + 22;
-    for (let i = 0; i <= idx; i++) {
+    const by = T + ph + 38;
+    for (let i = 0; i < steps.length; i++) {
       const xa = X(steps[i].time_to_tca_days), xb = i < steps.length - 1 ? X(steps[i + 1].time_to_tca_days) : W - Rr;
-      const xe = i < idx ? xb : xa + 6;
-      s += '<rect x="' + xa + '" y="' + by + '" width="' + Math.max(xe - xa, 3) + '" height="16" fill="' + COL[steps[i].action] + '" opacity="0.9"><title>' + steps[i].action + '</title></rect>';
+      s += '<rect x="' + xa + '" y="' + by + '" width="' + Math.max(xb - xa, 3) + '" height="14" fill="' + COLR(i) + '" opacity="' + (i <= idx ? 0.9 : 0.18) + '"><title>' + steps[i].action + '</title></rect>';
     }
-    s += '<text x="' + L + '" y="' + (by + 30) + '" font-size="10" fill="#374151">decision band: MONITOR (blue) / WAIT (amber) / ACT (red) per CDM</text>';
-    s += '<text x="' + L + '" y="' + (H - 4) + '" font-size="10">' + t0.toFixed(1) + ' d before closest approach</text><text x="' + (W - Rr) + '" y="' + (H - 4) + '" font-size="10" text-anchor="end">closest approach</text>';
-    let path = '';
-    for (let i = 0; i <= idx; i++) path += (i ? 'L' : 'M') + X(steps[i].time_to_tca_days).toFixed(1) + ',' + Y(steps[i].latest_risk).toFixed(1);
-    s += '<path d="' + path + '" fill="none" stroke="#111827" stroke-width="1.6"/>';
-    for (let i = 0; i <= idx; i++) s += '<circle cx="' + X(steps[i].time_to_tca_days) + '" cy="' + Y(steps[i].latest_risk) + '" r="' + (i === idx ? 5 : 3) + '" fill="' + COL[steps[i].action] + '" stroke="#fff"/>';
-    const done = idx === steps.length - 1;
-    if (fin && done) {
-      const fx = W - Rr - 8, fy = Y(fin.true_final_risk);
-      s += '<path d="M' + fx + ',' + (fy - 8) + 'L' + (fx + 7) + ',' + fy + 'L' + fx + ',' + (fy + 8) + 'L' + (fx - 7) + ',' + fy + 'Z" fill="' + (fin.true_high ? '#dc2626' : '#16a34a') + '" stroke="#111827" stroke-width="1.5"><title>actual final risk ' + fin.true_final_risk.toFixed(2) + '</title></path>';
-      s += '<text x="' + (fx - 10) + '" y="' + (fy - 10) + '" font-size="10" text-anchor="end" font-weight="bold">what actually happened: ' + (fin.true_final_risk < ymin ? '< ' + ymin : fin.true_final_risk.toFixed(2)) + '</text>';
+    s += '<text x="' + L + '" y="' + (by + 28) + '" font-size="10" fill="#374151">decision band per CDM: MONITOR (blue) / WAIT (amber) / ACT (red); faint = not yet arrived</text>';
+    const P = n => { let p = ''; for (let i = 0; i <= n; i++) p += (i ? 'L' : 'M') + X(steps[i].time_to_tca_days).toFixed(1) + ',' + Y(steps[i].latest_risk).toFixed(1); return p; };
+    s += '<path d="' + P(steps.length - 1) + '" fill="none" stroke="#111827" stroke-width="1.4" opacity="0.18"/>';
+    s += '<path d="' + P(idx) + '" fill="none" stroke="#111827" stroke-width="1.8"/>';
+    const mk = (i, r, on) => {
+      const c = COLR(i), x = X(steps[i].time_to_tca_days), y = Y(steps[i].latest_risk), hol = clamped(steps[i].latest_risk);
+      return '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + (hol ? '#fff' : c) + '" stroke="' + (hol ? c : '#fff') + '" stroke-width="' + (hol ? 2 : 1) + '" opacity="' + (on ? 1 : 0.28) + '"><title>' + steps[i].time_to_tca_days.toFixed(1) + ' d: ' + fmt(steps[i].latest_risk) + '</title></circle>';
+    };
+    for (let i = 0; i < steps.length; i++) if (i > idx) s += mk(i, 3.5, false);
+    for (let i = 0; i <= idx; i++) s += mk(i, i === idx ? 6 : 4, true);
+    if (fin) {
+      const fx = X(0) - 9, fy = Y(fin.true_final_risk), col = fin.true_high ? '#dc2626' : '#16a34a', hol = clamped(fin.true_final_risk);
+      s += '<path d="M' + fx + ',' + (fy - 9) + 'L' + (fx + 8) + ',' + fy + 'L' + fx + ',' + (fy + 9) + 'L' + (fx - 8) + ',' + fy + 'Z" fill="' + (hol ? '#fff' : col) + '" stroke="#111827" stroke-width="1.8"><title>actual final risk ' + fmt(fin.true_final_risk) + '</title></path>';
+      s += '<text x="' + (fx - 13) + '" y="' + (fy + (fy < T + 30 ? 16 : -10)) + '" font-size="11" text-anchor="end" font-weight="bold">what actually happened: ' + fmt(fin.true_final_risk) + '</text>';
     }
     chart.innerHTML = s + '</svg>';
-    const d = steps[idx];
-    let h = '<div><span class="badge" style="background:' + COL[d.action] + '">' + d.action + '</span> <span class="big">' + d.time_to_tca_days.toFixed(1) + ' d to closest approach</span></div>' +
-      '<p style="margin:6px 0">CDM ' + d.n_cdms + ' of ' + steps.length + '. Latest risk <b>' + d.latest_risk.toFixed(2) + '</b>, predicted <b>' + d.predicted_risk.toFixed(2) + '</b> (80% interval ' + d.interval[0].toFixed(1) + ' to ' + d.interval[1].toFixed(1) + '), P(high) <b>' + d.p_high.toFixed(2) + '</b></p><ul>' +
+    const d = steps[idx], done = idx === steps.length - 1;
+    let h = '<div><span class="badge xl" style="background:' + COL[d.action] + '">' + d.action + '</span> <span class="big">' + d.time_to_tca_days.toFixed(1) + ' d to closest approach</span></div>' +
+      '<p style="margin:6px 0">CDM ' + d.n_cdms + ' of ' + steps.length + '. Latest risk <b>' + fmt(d.latest_risk) + '</b>, predicted <b>' + fmt(d.predicted_risk) + '</b> (80% interval ' + d.interval[0].toFixed(1) + ' to ' + d.interval[1].toFixed(1) + '), P(high) <b>' + d.p_high.toFixed(2) + '</b></p><ul>' +
       d.reasons.map(r => '<li class="muted">' + esc(r) + '</li>').join('') + '</ul>';
-    if (fin && done) h += '<hr><div class="big">Actual outcome: ' + (fin.true_high ? 'HIGH risk (' : 'low risk (') + fin.true_final_risk.toFixed(2) + ')</div><p class="muted">Final decision was ' + d.action + ': ' +
+    if (fin && done) h += '<hr><div class="big">Actual outcome: ' + (fin.true_high ? 'HIGH risk (' : 'low risk (') + fmt(fin.true_final_risk) + ')</div><p class="muted">Final decision was ' + d.action + ': ' +
       (fin.true_high ? (d.action === 'ACT' ? 'correctly flagged.' : 'a MISS, the model did not recommend action.') : (d.action === 'ACT' ? 'a false alarm.' : 'correctly dismissed.')) + '</p>';
+    else if (fin) h += '<p class="muted">Press Play to step through the CDMs; the actual outcome is marked at the right edge of the chart.</p>';
     card.className = 'card' + (fin && done ? ' final' : ''); card.innerHTML = h;
     document.getElementById('rp-play').textContent = timer ? 'Pause' : (done ? 'Replay' : 'Play');
   }

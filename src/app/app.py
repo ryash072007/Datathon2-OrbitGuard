@@ -15,10 +15,10 @@ import pandas as pd
 from flask import Flask, Response, abort, jsonify, render_template, request
 
 from src.brief.brief import make_brief_from_facts
-from src.brief.facts import collect_facts, latest_file, load_cached_facts, save_facts
+from src.brief.facts import collect_facts, decision_facts, latest_file, load_cached_facts, save_facts
 from src.screen.catalog import data_dir
 
-from .charts import bar_chart, globe_svg, network_svg, slope_chart
+from .charts import bar_chart, globe_svg, markdown_html, network_svg, slope_chart
 from .jobs import Jobs
 
 ISS_NORAD = 25544
@@ -90,6 +90,23 @@ def compute_replay(event_id: int) -> dict:
     return d
 
 
+DEFAULT_DECISION_EVENT = 276  # ESA test event that escalates MONITOR -> ACT in the replay demo
+
+
+def default_decision() -> dict | None:
+    """Decision layer on a default historical ESA event, cached; None if the CDM data or model is missing."""
+    p = out_dir() / f"decision_{DEFAULT_DECISION_EVENT}.json"
+    cached = _read_json(p)
+    if cached is not None:
+        return cached
+    try:
+        d = decision_facts(DEFAULT_DECISION_EVENT)
+    except (FileNotFoundError, ValueError, KeyError):
+        return None
+    _write_json(p, d)
+    return d
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     jobs = Jobs()
@@ -145,7 +162,8 @@ def create_app() -> Flask:
         return render_template(
             "index.html", events=events, norad=norad, facts=facts, brief=brief, platform=platform_info(),
             burns=((facts or {}).get("burns") or {}).get("top", []),
-            decision=((facts or {}).get("risk") or {}).get("decision"),
+            decision=((facts or {}).get("risk") or {}).get("decision") or default_decision(),
+            brief_html=markdown_html(brief["text"]) if brief else "",
             bars=bar_chart(cons.get("exposed_by_constellation") or {}) if cons else "",
             slope=slope_chart(survey, selected=norad), n_survey=len(survey),
             net=net, net_top=(net or {}).get("nodes", [])[:15],
