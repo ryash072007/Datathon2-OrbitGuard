@@ -12,6 +12,7 @@ const loadingGlobe = <Loading label="Loading 3D view"/>;
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { finite, fixed, logProbability, number, percent, post, powerOfTen, probability, request } from './api';
 import type { Json } from './api';
+import { AiEvidence } from './AiEvidence';
 
 type Tab = 'overview' | 'encounters' | 'planning' | 'live' | 'validation';
 const TABS: [Tab, string][] = [['encounters', 'Encounters'], ['planning', 'Manoeuvre planning'], ['live', 'Live catalogue'], ['validation', 'Validation'], ['overview', 'How it works']];
@@ -569,6 +570,7 @@ function Validation() {
     </section>
 
     <DecisionEvidence evaluation={ml.decision_evaluation}/>
+    <AiEvidence/>
     <AccuracyAudit audit={ml.accuracy_audit}/>
     <GuardEvidence evaluation={ml.guard_evaluation}/>
     <section className="card section">

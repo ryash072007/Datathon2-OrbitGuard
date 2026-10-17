@@ -141,3 +141,22 @@ def test_population_endpoint_returns_columns(client):
     result = client.get("/api/population")
     assert result.status_code == 200
     assert result.get_json()["columns"]["c_object_type"] == ["DEBRIS"]
+
+
+def test_ai_evidence_missing_then_ok(client, tmp_path):
+    result = client.get("/api/ai-evidence").get_json()
+    assert set(result) == {"decision", "workload", "snapml", "snapml_bench", "optimise", "guard_eval", "nnpa_bench"}
+    assert all(block["status"] == "missing" and block["data"] is None for block in result.values())
+    art = tmp_path / "artifacts"
+    (art / "ml").mkdir(parents=True)
+    (art / "zai").mkdir()
+    (art / "ml" / "decision_evidence.json").write_text(json.dumps(
+        {"bootstrap": {"metrics": {"L": {"ci95_lo": -1, "ci95_hi": 1}}}, "platform": {"architecture": "AMD64"}}))
+    (art / "ml" / "workload_evidence.json").write_text(json.dumps({"platform": {"hostname": "h", "machine": "s390x"}}))
+    (art / "zai" / "snapml_bench_a.json").write_text(json.dumps({"host": "lpar1", "machine": "s390x", "table": []}))
+    result = client.get("/api/ai-evidence").get_json()
+    assert result["decision"]["status"] == "ok" and result["decision"]["platform"] == "AMD64"
+    assert result["decision"]["data"]["bootstrap"]["metrics"]["L"]["ci95_hi"] == 1
+    assert result["workload"]["platform"] == "h / s390x"
+    assert result["snapml_bench"]["status"] == "ok" and result["snapml_bench"]["platform"] == "lpar1 / s390x"
+    assert result["snapml"]["status"] == "missing" and result["snapml"]["path"] == "artifacts/zai/snapml_evidence.json"

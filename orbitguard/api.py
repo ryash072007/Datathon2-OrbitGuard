@@ -319,6 +319,42 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
         runtime = json.loads(runtime_path.read_text()) if runtime_path.is_file() else {"status": "not_run"}
         return response({"ml": ml_service.evidence(), "physics": physics_service.evidence(), "runtime": runtime})
 
+    def _evidence_file(path):
+        """One AI-evidence artefact as {status, path, platform, data}; never raises for absent or unreadable files."""
+        rel = path.relative_to(root).as_posix() if path is not None else None
+        if path is None or not path.is_file():
+            return {"status": "missing", "path": rel, "platform": None, "data": None}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            return {"status": "missing", "path": rel, "platform": None, "data": None, "error": f"unreadable: {exc}"}
+        info = data.get("platform") if isinstance(data, dict) and isinstance(data.get("platform"), dict) else {}
+        host = (info.get("hostname") or (data.get("host") if isinstance(data, dict) else None))
+        machine = (info.get("machine") or info.get("architecture") or (data.get("machine") if isinstance(data, dict) else None))
+        label = " / ".join(str(v) for v in (host, machine) if v) or None
+        return {"status": "ok", "path": rel, "platform": label, "data": data}
+
+    def _latest(directory, pattern):
+        files = sorted(directory.glob(pattern), key=lambda p: p.stat().st_mtime) if directory.is_dir() else []
+        return files[-1] if files else None
+
+    @app.get("/api/ai-evidence")
+    def ai_evidence():
+        art = root / "artifacts"
+        decision = _evidence_file(art / "ml" / "decision_evidence.json")
+        if decision["status"] == "ok":
+            decision["data"] = {"bootstrap": decision["data"].get("bootstrap"), "test_events": decision["data"].get("test_events"),
+                                "high_risk_test_events": decision["data"].get("high_risk_test_events")}
+        return response({
+            "decision": decision,
+            "workload": _evidence_file(art / "ml" / "workload_evidence.json"),
+            "snapml": _evidence_file(art / "zai" / "snapml_evidence.json"),
+            "snapml_bench": _evidence_file(_latest(art / "zai", "snapml_bench_*.json")),
+            "optimise": _evidence_file(art / "optimise" / "evidence.json"),
+            "guard_eval": _evidence_file(art / "llm" / "guard_eval.json"),
+            "nnpa_bench": _evidence_file(_latest(art / "nnpa", "nnpa_bench_*.json")),
+        })
+
     @app.get("/")
     @app.get("/<path:path>")
     def frontend(path=""):

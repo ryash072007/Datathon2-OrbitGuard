@@ -4,6 +4,7 @@ import { Check, Clock, Loader2, Play, RefreshCw, ShieldCheck, X } from 'lucide-r
 import { Empty, G, Loading, Notice, Status, Term, Tip, useAsync } from './ui';
 import { finite, fixed, logProbability, number, percent, post, probability, request } from './api';
 import type { Json } from './api';
+import { AskOrbitGuard, SecondOpinion } from './AiEvidence';
 
 const ISS = 25544;
 const DIRECTIONS: Record<string, string> = {'+T': 'Prograde', '-T': 'Retrograde', '+R': 'Radial out', '-R': 'Radial in', '+N': 'Cross-track +', '-N': 'Cross-track −'};
@@ -81,6 +82,7 @@ export function DecisionCard({decision, eventId}: {decision?: Json, eventId: str
       <div className="figure"><span className="figure-label">Decision-layer forecast <Tip text="The latest reported value adjusted by rules chosen with cross-validation on training encounters (for example, a borderline value just below 10⁻⁶ is promoted, a payload or very distant object is forced low)."/></span><strong>{logProbability(decision.predicted_log10_pc)}</strong></div>
       <div className="figure"><span className="figure-label">80% interval <Tip text="Quantile gradient-boosting models (10th and 90th percentile of the final log Pc). Honest but wide; see Validation for its measured coverage."/></span><strong className="interval">{logProbability(lo)} – {logProbability(hi)}</strong></div>
     </div>
+    <SecondOpinion decision={decision}/>
     <details className="raw"><summary>Why ({(decision.reasons || []).length} reasons)</summary><ul className="limits">{(decision.reasons || []).map((r: string) => <li key={r}>{r}</li>)}</ul></details>
     <OperatorActions context="encounter" reference={eventId} recommendation={{action: decision.action, p_high: decision.p_high}}/>
   </section>;
@@ -249,6 +251,7 @@ export function LiveCatalogue() {
         action={<div className="job-actions"><JobLine job={jobs[`brief:${norad}`]}/>{brief.data && <span className="badges"><span className="tag">{brief.data.backend_used}</span><Status ok={Boolean(brief.data.grounded)}>{brief.data.grounded ? 'Grounded' : 'Ungrounded'}</Status></span>}<button className="btn small" onClick={() => start(`/live/brief/${norad}`, {})}><RefreshCw size={13}/> Regenerate</button></div>}>
         {brief.data?.text ? <><BriefText text={brief.data.text}/>{brief.data.issues?.length > 0 && <p className="footnote">Guard: {brief.data.issues.join('; ')}</p>}</> : brief.data?.status === 'computing' ? <Loading label="The on-box language model is writing the brief"/> : brief.loading ? <Loading label="Loading brief"/> : <Empty title="No brief yet"/>}
       </Section>
+      <AskOrbitGuard norad={norad}/>
     </>}
     <div className="two-col">
       <Network job={jobs.network} onRun={() => start('/live/network', {})}/>

@@ -390,3 +390,19 @@ a { color: var(--accent-ink); }
 .audit .kind.screen { background: var(--warn-soft); color: var(--warn); }
 @media (max-width: 1000px) { .overview-tracks.three, .two-col { grid-template-columns: 1fr; } .figures.four { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 720px) { .figures.four { grid-template-columns: 1fr; } .audit li { grid-template-columns: 44px 1fr; } .bar-row { grid-template-columns: 100px 1fr 56px; } }
+
+.ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.ai-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
+.ai-card h3 { font-size: 15px; font-weight: 600; }
+.ai-where { margin-top: 0; }
+.ai-card code { font-size: 12px; }
+.kv { display: flex; flex-direction: column; gap: 6px; }
+.kv > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.kv dt { color: var(--text-2); }
+.kv dd { text-align: right; font-variant-numeric: tabular-nums; }
+.ask-form { display: flex; gap: 8px; }
+.ask-form .search { flex: 1; min-width: 0; }
+.ask-answer { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--surface-2); border-radius: 6px; }
+.ask-answer p { max-width: 80ch; line-height: 1.55; }
+.second-opinion { color: var(--text-2); }
+@media (max-width: 720px) { .ai-grid { grid-template-columns: 1fr; } }
