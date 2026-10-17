@@ -424,14 +424,25 @@ def _resolve_backend(backend):
     raise ValueError(f"the ask agent supports backends template and llamacpp, not {name!r}")
 
 
-def _llm_loop(be, question: str, ctx: Context, calls: list[dict]) -> str:
+class LLMTimeout(TimeoutError):
+    """The LLM part of an ask exceeded its time budget (checked between steps; threads are never killed)."""
+
+
+def _llm_loop(be, question: str, ctx: Context, calls: list[dict], deadline: float | None = None,
+              timeout_s: float | None = None) -> str:
     """Run the tool loop; returns the model's answer or raises ValueError/RuntimeError (caller falls back)."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": f"Question about NORAD {ctx.norad}: {question}"}]
+    def check_time() -> None:
+        if deadline is not None and time.monotonic() > deadline:
+            raise LLMTimeout(f"LLM timed out after {timeout_s:g} s")
+
     while True:
+        check_time()
         final_only = len(calls) >= MAX_TOOL_CALLS
         # first step must be a tool call (grammar-forced); the last step must be an answer
         raw = be.chat(messages, ANSWER_SCHEMA if final_only else STEP_SCHEMA if calls else TOOL_SCHEMA)
+        check_time()
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -460,8 +471,10 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def ask(question: str, norad: int | None = None, backend=None) -> dict:
-    """Answer ``question`` about the cached live event for ``norad`` (default: ISS, else the latest analysis)."""
+def ask(question: str, norad: int | None = None, backend=None, timeout_s: float | None = None) -> dict:
+    """Answer ``question`` about the cached live event for ``norad`` (default: ISS, else the latest analysis).
+
+    ``timeout_s`` bounds the LLM part: once exceeded (checked between model steps) the template answer is used."""
     if not isinstance(question, str) or not question.strip():
         raise ValueError("question must be a nonempty string")
     if len(question) > MAX_QUESTION_CHARS:
@@ -480,7 +493,8 @@ def ask(question: str, norad: int | None = None, backend=None) -> dict:
 
     if be is not None:
         try:
-            answer = _llm_loop(be, question, ctx, calls)
+            deadline = time.monotonic() + timeout_s if timeout_s else None
+            answer = _llm_loop(be, question, ctx, calls, deadline, timeout_s)
             used = getattr(be, "name", "llm")
             union = {"tools": [c["result"] for c in calls]}
             bad = check_grounding(answer, union)
@@ -494,6 +508,8 @@ def ask(question: str, norad: int | None = None, backend=None) -> dict:
                 guardian = run_configured(json.dumps(union, separators=(",", ":"), default=str), answer)
                 if guardian.get("flagged"):
                     reason, answer = f"Granite Guardian flagged the answer as not grounded (p_risk={guardian.get('p_risk')})", None
+        except LLMTimeout as exc:
+            reason, answer = str(exc), None
         except Exception as exc:  # noqa: BLE001 - any LLM failure degrades to the deterministic answer, recorded
             reason, answer = f"{type(exc).__name__}: {exc}", None
         if answer is None:

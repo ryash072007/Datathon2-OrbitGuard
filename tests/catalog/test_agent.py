@@ -152,12 +152,102 @@ def client(cached, tmp_path):
     return create_app(tmp_path, ml_service=Stub(), physics_service=Stub()).test_client()
 
 
-def test_api_ask_route(client):
-    r = client.post("/api/live/ask", json={"question": "what if I burn one orbit later?", "norad": 25544})
-    assert r.status_code == 200
+def _wait(client, r, question=None, tries=200):
+    """Poll a started ask job until it leaves 'running'."""
+    import time
     j = r.get_json()
-    assert j["grounded"] and j["tool_calls"][0]["tool"] == "lookup_burn" and "guardian" in j
-    assert client.post("/api/live/ask", json={"question": "audit log?"}).status_code == 200
+    for _ in range(tries):
+        if j["status"] != "running":
+            return j
+        time.sleep(0.02)
+        j = client.get("/api/live/ask", query_string={"norad": 25544, "question": question or Q}).get_json()
+    raise AssertionError("ask job did not finish")
+
+
+Q = "what if I burn one orbit later?"
+
+
+def test_api_ask_route_job_lifecycle_and_cache(client):
+    r = client.post("/api/live/ask", json={"question": Q, "norad": 25544})
+    assert r.status_code == 202 and r.get_json()["status"] == "running" and r.get_json()["key"].startswith("ask:25544:")
+    j = _wait(client, r)
+    assert j["status"] == "done" and j["grounded"] and j["tool_calls"][0]["tool"] == "lookup_burn" and "guardian" in j
+    assert j["cached"] is False and len(j["facts_sha256"]) == 64 and j["generated_utc"]
+    # an identical (differently spaced/cased) question is now answered instantly from the cache
+    r2 = client.post("/api/live/ask", json={"question": "  WHAT if I burn   one orbit later? ", "norad": 25544})
+    j2 = r2.get_json()
+    assert r2.status_code == 200 and j2["status"] == "done" and j2["cached"] is True
+    assert j2["generated_utc"] == j["generated_utc"]
+    # refresh recomputes
+    r3 = client.post("/api/live/ask", json={"question": Q, "norad": 25544, "refresh": True})
+    assert r3.status_code == 202 and _wait(client, r3)["cached"] is False
+    assert client.post("/api/live/ask", json={"question": "audit log?"}).status_code in (200, 202)
+
+
+def test_ask_cache_misses_when_facts_change(client, cached, facts):
+    _wait(client, client.post("/api/live/ask", json={"question": Q, "norad": 25544}))
+    assert client.post("/api/live/ask", json={"question": Q, "norad": 25544}).get_json()["cached"] is True
+    facts["generated_utc"] = "2099-01-01T00:00:00Z"
+    (cached / "out" / "facts_25544.json").write_text(json.dumps(facts), encoding="utf-8")
+    r = client.post("/api/live/ask", json={"question": Q, "norad": 25544})
+    assert r.status_code == 202 and r.get_json()["status"] == "running"
+    _wait(client, r)
+
+
+class Slow:
+    name = "llamacpp"
+    gate = None
+
+    def chat(self, messages, schema):
+        if Slow.gate is not None:
+            Slow.gate.wait(5)
+        return json.dumps({"tool": "get_event_facts", "args": {}}) if len(messages) == 2 else json.dumps({"answer": "ok"})
+
+
+def test_second_llm_job_is_busy_not_concurrent(client, monkeypatch):
+    import threading
+    monkeypatch.setenv("LLM_BACKEND", "llamacpp")
+    monkeypatch.setattr(agent, "LlamaChat", Slow)
+    Slow.gate = threading.Event()
+    try:
+        a = client.post("/api/live/ask", json={"question": "how close?", "norad": 25544})
+        assert a.status_code == 202 and a.get_json()["status"] == "running"
+        b = client.post("/api/live/ask", json={"question": "something else", "norad": 25544})
+        assert b.get_json()["status"] == "busy" and "busy" in b.get_json()["message"]
+        assert client.post("/api/live/brief/25544").get_json()["status"] == "busy"
+        Slow.gate.set()
+        done = _wait(client, a, "how close?")
+        assert done["status"] == "done" and done["backend"] == "llamacpp"
+    finally:
+        Slow.gate.set()
+        Slow.gate = None
+
+
+def test_llm_timeout_falls_back_to_template(cached):
+    import time
+
+    class Sleepy(Slow):
+        def chat(self, messages, schema):
+            time.sleep(0.05)
+            return json.dumps({"tool": "get_event_facts", "args": {}})
+    r = agent.ask("how close?", 25544, Sleepy(), timeout_s=0.01)
+    assert r["backend"] == "template" and r["fallback_reason"] == "LLM timed out after 0.01 s" and r["grounded"]
+
+
+def test_timed_out_ask_is_not_cached(client, monkeypatch):
+    import time
+
+    class Sleepy(Slow):
+        def chat(self, messages, schema):
+            time.sleep(0.05)
+            return json.dumps({"tool": "get_event_facts", "args": {}})
+    monkeypatch.setenv("LLM_BACKEND", "llamacpp")
+    monkeypatch.setenv("ASK_TIMEOUT_S", "0.01")
+    monkeypatch.setattr(agent, "LlamaChat", Sleepy)
+    j = _wait(client, client.post("/api/live/ask", json={"question": "how close?", "norad": 25544}), "how close?")
+    assert j["status"] == "done" and j["fallback_reason"].startswith("LLM timed out after")
+    again = client.post("/api/live/ask", json={"question": "how close?", "norad": 25544})
+    assert again.status_code == 202  # recomputed, not served from cache
 
 
 @pytest.mark.parametrize("payload", [{}, {"question": ""}, {"question": "x" * 501}, {"question": 5},
@@ -169,6 +259,7 @@ def test_api_ask_validates_input(client, payload):
 
 def test_api_ask_without_analysis_is_not_ready(client):
     assert client.post("/api/live/ask", json={"question": "hi", "norad": 99999}).status_code == 503
+    assert client.get("/api/live/ask", query_string={"question": "hi", "norad": 99999}).status_code == 503
 
 
 def test_full_burn_table_is_searchable_but_not_a_brief_fact(cached, facts):

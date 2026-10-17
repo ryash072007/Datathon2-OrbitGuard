@@ -325,16 +325,98 @@ def create_blueprint() -> Blueprint:
                              f"screening NORAD {norad} against the catalogue")
         return jsonify({"started": started, "key": f"analyse:{norad}", "poll": "/api/live/status"}), 202
 
-    @bp.post("/api/live/ask")
-    def ask_route():
-        from orbitguard.brief.agent import MAX_QUESTION_CHARS, ask
-        payload = body()
+    llm_lock = threading.Lock()
+    llm_keys: set[str] = set()  # jobs that hold the single llama model (8 GB RAM: never load a second one)
+    mem_results: dict[str, dict] = {}  # finished asks that are deliberately not cached on disk (LLM timeouts)
+
+    def llm_running() -> str | None:
+        running = {k for k, j in jobs.snapshot()["jobs"].items() if j["state"] == "running"}
+        with llm_lock:
+            llm_keys.intersection_update(running)
+            return next(iter(llm_keys), None)
+
+    def ask_target(payload: dict) -> tuple[str, int, str, str, str]:
+        """Validate and return (question, norad, job key, cache file name, facts sha256). 503 if never analysed."""
+        from orbitguard.brief.agent import MAX_QUESTION_CHARS, Context
         question, norad = payload.get("question"), payload.get("norad")
         if not isinstance(question, str) or not question.strip() or len(question) > MAX_QUESTION_CHARS:
             raise ValueError(f"question must be a nonempty string of at most {MAX_QUESTION_CHARS} characters")
         if norad is not None and (isinstance(norad, bool) or not isinstance(norad, int) or not 0 < norad < 10_000_000):
             raise ValueError("norad must be a positive integer NORAD catalogue number or null")
-        return jsonify(ask(question, norad))
+        ctx = Context(norad)
+        digest = hashlib.sha1(" ".join(question.lower().split()).encode("utf-8")).hexdigest()[:16]
+        return question.strip(), ctx.norad, f"ask:{ctx.norad}:{digest}", f"ask_{ctx.norad}_{digest}.json", _sha(ctx.facts)
+
+    def ask_poll(norad: int, question: str) -> str:
+        from urllib.parse import quote
+        return f"/api/live/ask?norad={norad}&question={quote(question)}"
+
+    def ask_answer(key: str, fname: str, fsha: str, use_mem: bool) -> dict | None:
+        hit = mem_results.get(key) if use_mem else None
+        if not (hit and hit.get("facts_sha256") == fsha):
+            hit = _read_json(_out() / fname)
+        return hit if hit and hit.get("facts_sha256") == fsha else None
+
+    @bp.route("/api/live/ask", methods=["GET", "POST"])
+    def ask_route():
+        from orbitguard.brief.agent import ask
+        post_ = request.method == "POST"
+        payload = body() if post_ else {
+            "question": request.args.get("question"),
+            "norad": int(request.args["norad"]) if request.args.get("norad", "").isdigit() else None}
+        question, norad, key, fname, fsha = ask_target(payload)
+        backend = os.environ.get("LLM_BACKEND", "template").lower()
+        refresh = post_ and payload.get("refresh") is True
+        job = jobs.snapshot()["jobs"].get(key)
+        if not refresh:
+            hit = ask_answer(key, fname, fsha, use_mem=not post_)
+            if hit and not (job and job["state"] == "running"):
+                # served from disk (or just finished by this process): cached only if no job of ours produced it
+                fresh = bool(job) and not post_
+                return jsonify({"status": "done", "key": key, **hit, "cached": not fresh})
+        if not post_:
+            if job and job["state"] == "running":
+                return jsonify({"status": "running", "key": key, "backend": backend, "elapsed_s": job["elapsed_s"],
+                                "poll": ask_poll(norad, question)})
+            if job and job["state"] == "error":
+                return jsonify({"status": "error", "key": key, "error": job["error"]})
+            return jsonify({"status": "none", "key": key, "message": "no answer yet; POST /api/live/ask to start one"})
+
+        use_llm = backend != "template"
+        if use_llm:
+            other = llm_running()
+            if other and other != key:
+                return jsonify({"status": "busy", "started": False, "key": key, "busy_with": other,
+                                "message": "Granite is busy with another LLM job (a brief or another question). "
+                                           "Only one runs at a time on this VM; try again when it finishes."}), 202
+
+        def run() -> None:
+            t0 = time.time()
+            try:
+                res = ask(question, norad, timeout_s=float(os.environ.get("ASK_TIMEOUT_S", "600")))
+                res.update(facts_sha256=fsha, question=question, total_s=round(time.time() - t0, 1),
+                           generated_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+                path = _out() / fname
+                if str(res.get("fallback_reason") or "").startswith("LLM timed out"):
+                    mem_results[key] = res  # shown to this poll, but a later identical question tries Granite again
+                    path.unlink(missing_ok=True)
+                else:
+                    mem_results.pop(key, None)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(json.dumps(res), encoding="utf-8")
+            finally:
+                with llm_lock:
+                    llm_keys.discard(key)
+
+        mem_results.pop(key, None) if refresh else None
+        with llm_lock:
+            if use_llm:
+                llm_keys.add(key)
+            started = jobs.start(key, run, f"{backend} answer for NORAD {norad}")
+            if use_llm and not started:
+                llm_keys.discard(key)
+        return jsonify({"status": "running", "started": started, "key": key, "backend": backend,
+                        "poll": ask_poll(norad, question)}), 202
 
     @bp.get("/api/live/facts/<int:norad>")
     def facts(norad: int):
@@ -358,7 +440,25 @@ def create_blueprint() -> Blueprint:
         if backend == "template" and request.method == "GET":
             return jsonify(make_and_cache_brief(f))
         # An on-box LLM brief takes seconds to minutes: generate it in the background.
-        started = jobs.start(f"brief:{norad}", lambda: make_and_cache_brief(f), f"{backend} brief for NORAD {norad}")
+        if backend != "template":
+            other = llm_running()
+            if other and other != f"brief:{norad}":
+                return jsonify({"status": "busy", "started": False, "backend": backend, "previous": cached,
+                                "busy_with": other, "poll": "/api/live/status",
+                                "message": "Granite is busy answering a question; try again when it finishes."}), 202
+
+        def run_brief() -> None:
+            try:
+                make_and_cache_brief(f)
+            finally:
+                with llm_lock:
+                    llm_keys.discard(f"brief:{norad}")
+        with llm_lock:
+            if backend != "template":
+                llm_keys.add(f"brief:{norad}")
+            started = jobs.start(f"brief:{norad}", run_brief, f"{backend} brief for NORAD {norad}")
+            if backend != "template" and not started:
+                llm_keys.discard(f"brief:{norad}")
         return jsonify({"status": "computing", "started": started, "backend": backend, "previous": cached,
                         "poll": "/api/live/status"}), 202
 

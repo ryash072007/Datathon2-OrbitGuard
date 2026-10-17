@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { finite, fixed, number, percent, post } from './api';
+import { finite, fixed, number, percent, post, request } from './api';
 import type { Json } from './api';
 import { Loading, Notice, Status, Tip, useAsync, useTokens } from './ui';
 
@@ -261,10 +261,28 @@ export function AskOrbitGuard({norad}: {norad: number}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [answer, setAnswer] = useState<Json | null>(null);
-  async function ask(q: string) {
+  const [elapsed, setElapsed] = useState(0);
+  const [notice, setNotice] = useState('');
+  const alive = useRef(true);
+  useEffect(() => {alive.current = true; return () => {alive.current = false;};}, []);
+  async function ask(q: string, refresh = false) {
     if (!q.trim() || busy) return;
-    setBusy(true); setError('');
-    try {setAnswer(await post('/live/ask', {question: q.trim(), norad}));} catch (e) {setError((e as Error).message);} finally {setBusy(false);}
+    setBusy(true); setError(''); setNotice(''); setElapsed(0);
+    const t0 = Date.now();
+    const tick = window.setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    try {
+      let r = await post('/live/ask', {question: q.trim(), norad, refresh});
+      const poll = `/live/ask?norad=${norad}&question=${encodeURIComponent(q.trim())}`;
+      while (alive.current && r.status === 'running') {
+        await new Promise(res => window.setTimeout(res, 2000));
+        r = await request(poll);
+      }
+      if (!alive.current) return;
+      if (r.status === 'busy') setNotice(r.message || 'Granite is busy with another job. Try again shortly.');
+      else if (r.status === 'error') setError(r.error || 'The question failed.');
+      else if (r.status === 'done') setAnswer(r);
+      else setError(r.message || 'No answer was produced.');
+    } catch (e) {setError((e as Error).message);} finally {window.clearInterval(tick); setBusy(false);}
   }
   const g = answer?.guardian || {};
   return <section className="card section" aria-label="Ask OrbitGuard">
@@ -275,6 +293,8 @@ export function AskOrbitGuard({norad}: {norad: number}) {
       <button className="btn primary" disabled={busy || !question.trim()}>{busy ? <Loader2 size={14} className="spin"/> : <Send size={14}/>} Ask</button>
     </form>
     <div className="chips">{SUGGESTIONS.map(s => <button key={s} className="btn small" disabled={busy} onClick={() => {setQuestion(s); ask(s);}}>{s}</button>)}</div>
+    {busy && <p className="small muted" aria-live="polite"><Loader2 size={12} className="spin"/> Granite is thinking on LinuxONE… {elapsed}s</p>}
+    {notice && <Notice>{notice}</Notice>}
     {error && <Notice>{error}</Notice>}
     {answer && <div className="ask-answer" aria-live="polite">
       <p>{answer.answer}</p>
@@ -282,7 +302,9 @@ export function AskOrbitGuard({norad}: {norad: number}) {
         <span className="tag">{answer.backend}</span>
         <Status ok={Boolean(answer.grounded)}>{answer.grounded ? 'Numbers grounded' : 'Not grounded'}</Status>
         <span className="tag" title={g.model || ''}>Guardian: {g.status === 'ok' ? (g.flagged ? 'flagged' : 'passed') : g.status || 'n/a'}</span>
+        {answer.cached && <span className="tag">cached · generated {answer.generated_utc ? String(answer.generated_utc).replace('T', ' ').replace('Z', ' UTC') : 'earlier'}</span>}
         {finite(answer.latency_ms) && <span className="small muted">{number(answer.latency_ms / 1000, 1)} s</span>}
+        {answer.cached && <button className="btn small" disabled={busy} onClick={() => ask(String(answer.question || question), true)}>Recompute</button>}
       </div>
       {answer.fallback_reason && <p className="footnote">Fell back to the template answer: {answer.fallback_reason}</p>}
       {Array.isArray(answer.tool_calls) && answer.tool_calls.length > 0 && <div className="chips" aria-label="Tools used">
