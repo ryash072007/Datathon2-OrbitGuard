@@ -67,3 +67,31 @@ def test_platform_reports_architecture(client):
     assert p["byteorder"] in {"little", "big"} and "sgp4_accelerated" in p
     ev = client.get("/api/evidence/platform").get_json()
     assert ev["network"]["summary"]["n_edges"] == 4 and ev["nnpa"] == {"status": "missing"}
+
+
+def test_latency_recorder_is_rolling_and_reports_percentiles():
+    from orbitguard.live import LatencyRecorder
+    rec = LatencyRecorder(window=5)
+    for ms in (1, 2, 3, 4, 5, 100):
+        rec.record("forecast", ms)
+    rec.record("forecast", None)
+    rec.record("forecast", float("nan"))
+    s = rec.summary()["forecast"]
+    assert s["n"] == 5 and s["last_ms"] == 100 and s["p50_ms"] == 4 and s["p95_ms"] > 5
+
+
+def test_latency_endpoint_reports_platform_and_forecast_stages(client):
+    from orbitguard.live import record_forecast
+    record_forecast({"elapsed_ms": 8.0, "stage_ms": {"decision": 3.0, "second_opinion": None}})
+    body = client.get("/api/latency").get_json()
+    assert body["stages"]["forecast"]["n"] >= 1 and "decision_layer" in body["stages"]
+    assert {"machine", "hostname", "nnpa"} <= set(body["platform"])
+
+
+def test_stage_timings_counts_burns_times_objects():
+    from orbitguard.live import stage_timings
+    facts = {"timings_s": {"find_approach_s": 1.0, "screen_s": 2.0, "consequence_s": 0.5},
+             "burns": {"n_screened": 145, "n_objects_screened": 1000}}
+    t = stage_timings(facts, 5.0, 0.1)
+    assert t["burn_object_pairs"] == 145000 and t["pairs_per_s"] == 72500
+    assert abs(sum(s["seconds"] for s in t["stages"]) - 5.0) < 1e-9

@@ -132,7 +132,7 @@ class MLService:
         state = alert_state(forecast)
         previous = alert_state(self.forecast(history[:-1])) if message_count > 1 else None
         identity = json.dumps({'history': history, 'forecast': {
-            key: value for key, value in forecast.items() if key != 'elapsed_ms'
+            key: value for key, value in forecast.items() if key not in ('elapsed_ms', 'stage_ms')
         }}, sort_keys=True, allow_nan=False)
         return {
             'update_id': hashlib.sha256(identity.encode()).hexdigest(),
@@ -164,8 +164,9 @@ class MLService:
         if numeric_count<20: warnings.append('Sparse input features: supply the full ESA CDM schema for benchmark-comparable predictions.')
         if model['metadata']['selected_method']=='latest_baseline': warnings.append('Cross-validation selected the latest-risk baseline; learned challenger is shown in Evidence.')
         supplemental=self._supplemental_review(float(latest[0]),float(challenger[0]))
-        decision=self._attach_second_opinion(self._decision_layer(rows),rows)
-        return {'decision':decision,'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
+        t_dec=time.perf_counter(); decision=self._decision_layer(rows); decision_ms=(time.perf_counter()-t_dec)*1000
+        decision=self._attach_second_opinion(decision,rows)
+        return {'decision':decision,'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'stage_ms':{'decision':decision_ms,'second_opinion':(decision.get('second_opinion') or {}).get('latency_ms')},'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
 
     def evidence(self):
         p=self.base/'evidence.json'

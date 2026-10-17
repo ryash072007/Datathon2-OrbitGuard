@@ -28,6 +28,33 @@ function OrbitMark() {return <svg width="22" height="22" viewBox="0 0 24 24" fil
 
 // ---------------------------------------------------------------- shell
 
+function gapText(days: number | null): string {
+  if (days === null || !finite(days)) return '';
+  const hours = days * 24;
+  return hours >= 1 ? `${number(hours, 1)} h` : `${number(hours * 60, 0)} min`;
+}
+
+function RealTimeStrip() {
+  const [lat, setLat] = useState<Json | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const poll = () => request<Json>('/latency').then(d => {if (alive) setLat(d);}).catch(() => {if (alive) setLat(null);});
+    poll();
+    const timer = window.setInterval(poll, 4000);
+    return () => {alive = false; window.clearInterval(timer);};
+  }, []);
+  const f = lat?.stages?.forecast, p = lat?.platform;
+  const where = p ? (p.is_linuxone ? `${p.machine} (IBM LinuxONE)` : `${p.machine} (development machine, not LinuxONE)`) : '—';
+  return <div className="rt-strip" role="status" aria-label="Real-time decision latency"><div className="rt-inner">
+    <span className="rt-label"><span className={`dot ${f ? 'on' : ''}`}/>Real time</span>
+    <span>Last decision <strong>{f ? `${number(f.last_ms, 1)} ms` : '—'}</strong></span>
+    <span>median {f ? `${number(f.p50_ms, 1)} ms` : '—'}</span>
+    <span>p95 <strong>{f ? `${number(f.p95_ms, 1)} ms` : '—'}</strong></span>
+    <span className="muted">{f ? `over ${number(f.n, 0)} decisions` : 'no decisions yet'}</span>
+    <span>on <strong>{where}</strong>{p?.nnpa ? ' · NNPA present' : ''}</span>
+  </div></div>;
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>(() => {const hash = location.hash.slice(1); return (TABS.some(([id]) => id === hash) ? hash : 'encounters') as Tab;});
   const health = useAsync<Json>('/health');
@@ -50,7 +77,7 @@ export default function App() {
           ? `Every forecast and screening on this page is computed on an IBM LinuxONE virtual machine (${health.data.architecture}, ${health.data.available_cpus ?? '?'} CPUs). The browser only displays the results.`
           : `Running on a ${health.data.architecture} development machine, not LinuxONE.`) : 'Checking the connection to the OrbitGuard server.'}/>
       </div>
-    </div></header>
+    </div><RealTimeStrip/></header>
     <main className="page">
       {health.error && <Notice retry={health.retry}>Cannot reach the OrbitGuard server: {health.error}</Notice>}
       {tab === 'overview' ? <Overview/> : tab === 'encounters' ? <Encounters/> : tab === 'planning' ? <Planning/> : tab === 'live' ? <LiveCatalogue/> : <Validation/>}
@@ -181,7 +208,7 @@ function Encounters() {
           <h3 className="subhead">Reported collision probability over time <Tip text={`${G.pc} ${G.threshold}`}/></h3>
           <RiskChart data={shown} full={full}/>
           <div className="replay">
-            <button className="btn icon" aria-label={playing ? 'Pause replay' : 'Replay messages one by one'} onClick={() => {if (playing) {setPlaying(false); return;} if (replayCount === null || replayCount >= history.length) {setUpdates([]); setReplayCount(1);} setPlaying(true);}}>{playing ? <Pause size={14}/> : <Play size={14}/>}</button>
+            <button className="btn icon" aria-label={playing ? 'Pause replay' : 'Replay messages one by one'} onClick={() => {if (playing) {setPlaying(false); return;} if (replayCount === null || replayCount >= history.length) {setUpdates([]); setReplayCount(1);} setPlaying(true);}}>{playing ? <Pause size={14}/> : <Play size={14}/>}<span>{playing ? 'Pause' : 'Play stream'}</span></button>
             <input aria-label="Historical message replay position" type="range" min="1" max={history.length} value={replayCount ?? history.length} onChange={e => {setPlaying(false); setReplayCount(Number(e.target.value));}}/>
             <span className="small muted replay-count">Message {replayCount ?? history.length} of {history.length}{forecastBusy && <Loader2 size={12} className="spin"/>}</span>
           </div>
@@ -194,11 +221,17 @@ function Encounters() {
           <DecisionCard decision={forecast?.decision} eventId={selected}/>
           {updates.length > 0 && <section className="replay-timeline" aria-label="Update processing timeline">
             <h3 className="subhead">Update → forecast → alert</h3>
-            <p className="small muted">Historical replay, not a live feed. Each step waits for the server before continuing. Alert changes compare consecutive message prefixes, even when you scrub.</p>
-            <ol aria-live="polite">{updates.slice(-5).map(update => <li key={update.message_count}>
-              <strong>Message {update.message_count}</strong><span>{update.alert.state === 'high_risk' ? 'High-risk alert' : update.alert.state === 'additional_review' ? 'Additional review (experimental)' : 'Monitor'}{update.alert.changed ? ' — changed' : ''}</span>
-              <span className="small muted">{number(update.processing_ms, 1)} ms server processing; {number(update.roundtrip_ms, 1)} ms round trip</span>
-            </li>)}</ol>
+            <p className="small muted">Historical replay, not a live feed: messages arrive hours apart, and every new one gets a fresh decision in milliseconds. Each step waits for the server before continuing. Alert changes compare consecutive message prefixes, even when you scrub.</p>
+            <ol aria-live="polite" className="ticker">{updates.slice(-8).map(update => {
+              const next = history[update.message_count];
+              const gapDays = next && finite(next.time_to_tca) && finite(update.message_time_to_tca_days) ? update.message_time_to_tca_days - next.time_to_tca : null;
+              return <li key={update.message_count}>
+                <strong>Message {update.message_count}</strong>
+                <span className="badge-ms" title="Server time to run the forecast and decision layer for this message">{number(update.forecast?.elapsed_ms, 1)} ms</span>
+                <span>{update.alert.state === 'high_risk' ? 'High-risk alert' : update.alert.state === 'additional_review' ? 'Additional review (experimental)' : 'Monitor'}{update.alert.changed ? ' — changed' : ''}</span>
+                <span className="small muted">Issued {number(update.message_time_to_tca_days, 2)} days before closest approach. {gapDays !== null ? `The next message in this encounter arrived ${gapText(gapDays)} later; the decision took ${number(update.forecast?.elapsed_ms, 0)} ms.` : `This is the last message in the encounter; the decision took ${number(update.forecast?.elapsed_ms, 0)} ms.`} ({number(update.roundtrip_ms, 0)} ms including the network round trip.)</span>
+              </li>;
+            })}</ol>
             {updates.find(update => update.message_count === replayCount) && <p className="small">{updates.find(update => update.message_count === replayCount)?.action}</p>}
             <p className="small muted">Synthetic manoeuvre screening remains separate: ESA histories do not provide the planning geometry.</p>
           </section>}

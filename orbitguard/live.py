@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import traceback
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 
@@ -89,6 +90,73 @@ def platform_info() -> dict:
         "llm_backend": os.environ.get("LLM_BACKEND", "template"),
         "llm_model": Path(model_path).name if model_path else None,
     }
+
+
+# --------------------------------------------------------------------------- latency recorder
+
+class LatencyRecorder:
+    """Thread-safe rolling window of wall-clock samples per stage (milliseconds)."""
+
+    def __init__(self, window: int = 500) -> None:
+        self._window = window
+        self._lock = threading.Lock()
+        self._samples: dict[str, deque] = {}
+
+    def record(self, stage: str, ms) -> None:
+        if ms is None or isinstance(ms, bool) or not isinstance(ms, (int, float)) or ms != ms or ms < 0:
+            return
+        with self._lock:
+            self._samples.setdefault(stage, deque(maxlen=self._window)).append(float(ms))
+
+    def summary(self) -> dict:
+        import numpy as np
+        with self._lock:
+            copy = {k: list(v) for k, v in self._samples.items()}
+        return {k: {"n": len(v), "p50_ms": float(np.percentile(v, 50)), "p95_ms": float(np.percentile(v, 95)),
+                    "last_ms": v[-1]} for k, v in copy.items() if v}
+
+
+LATENCY = LatencyRecorder()
+STAGES = ("forecast", "decision_layer", "snap_second_opinion", "live_screen_total", "live_burn_screening")
+
+
+def latency_payload() -> dict:
+    info = platform_info()
+    return {"stages": LATENCY.summary(),
+            "platform": {"machine": info["machine"], "hostname": platform.node(), "is_linuxone": info["is_linuxone"],
+                         "nnpa": info["nnpa_in_cpuinfo"], "byteorder": info["byteorder"]},
+            "window": LATENCY._window}
+
+
+def record_forecast(forecast: dict | None) -> None:
+    """Feed one forecast result (as returned by MLService.forecast) into the recorder."""
+    if not isinstance(forecast, dict):
+        return
+    LATENCY.record("forecast", forecast.get("elapsed_ms"))
+    stage = forecast.get("stage_ms") or {}
+    LATENCY.record("decision_layer", stage.get("decision"))
+    LATENCY.record("snap_second_opinion", stage.get("second_opinion"))
+
+
+def stage_timings(facts: dict, total_s: float, brief_s: float | None) -> dict:
+    """Per-stage wall time of one analyse job, from timings collect_facts already measured plus job-level clocks."""
+    t = facts.get("timings_s") or {}
+    burns = facts.get("burns") or {}
+    find_s, screen_s, cons_s = t.get("find_approach_s"), t.get("screen_s"), t.get("consequence_s")
+    known = sum(v for v in (find_s, screen_s, cons_s, brief_s) if isinstance(v, (int, float)))
+    stages = [
+        {"key": "load_search", "label": "Load catalogue, propagate orbits (SGP4) and find the closest approach", "seconds": find_s},
+        {"key": "prepare", "label": "Prepare the screen (burn grid, object ephemerides, baseline risk)",
+         "seconds": max(0.0, total_s - known) if known else None},
+        {"key": "burn_screen", "label": "Screen burns against every object and score Pc and recommend", "seconds": screen_s},
+        {"key": "consequence", "label": "Debris consequence assessment", "seconds": cons_s},
+        {"key": "brief", "label": "Write the brief", "seconds": brief_s},
+    ]
+    stages = [s for s in stages if isinstance(s["seconds"], (int, float))]
+    n_b, n_o = burns.get("n_screened"), burns.get("n_objects_screened")
+    pairs = n_b * n_o if isinstance(n_b, int) and isinstance(n_o, int) else None
+    return {"stages": stages, "total_s": total_s, "n_burns": n_b, "n_objects": n_o, "burn_object_pairs": pairs,
+            "pairs_per_s": (pairs / screen_s) if pairs and screen_s else None}
 
 
 # --------------------------------------------------------------------------- cached results
@@ -197,17 +265,30 @@ def create_blueprint() -> Blueprint:
     def analyse_job(norad: int, target_km: float) -> Callable[[], None]:
         def fn() -> None:
             from orbitguard.brief.facts import collect_facts, save_facts
+            t_job = time.perf_counter()
             facts = collect_facts(norad, cdm_event=DEFAULT_CDM_EVENT if _decision_ready() else None,
                                   target_km=target_km)
             save_facts(facts)
+            collected_s = time.perf_counter() - t_job
             pol = facts["burns"].get("policies") or {}
             _audit("screen", {"primary_norad": norad, "threat_norad": facts["event"]["threat"]["norad"],
                               "tca_utc": facts["event"]["tca_utc"], "status": pol.get("status"),
                               "recommended": (pol.get("orbitguard") or {}).get("burn_id"),
                               "pc_threshold": pol.get("pc_threshold"), "facts_sha256": _sha(facts)})
+            brief_s = None
             if os.environ.get("LLM_BACKEND", "template").lower() == "template":
+                t_brief = time.perf_counter()
                 make_and_cache_brief(facts)
+                brief_s = time.perf_counter() - t_brief
+            facts["stage_timings"] = stage_timings(facts, collected_s + (brief_s or 0.0), brief_s)
+            save_facts(facts)
+            LATENCY.record("live_screen_total", facts["stage_timings"]["total_s"] * 1000)
+            LATENCY.record("live_burn_screening", (facts.get("timings_s") or {}).get("screen_s", float("nan")) * 1000)
         return fn
+
+    @bp.get("/api/latency")
+    def api_latency():
+        return jsonify(latency_payload())
 
     @bp.get("/api/platform")
     def api_platform():

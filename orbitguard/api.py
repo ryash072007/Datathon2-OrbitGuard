@@ -176,7 +176,7 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
     jobs = JobStore(root, job_executor, screen_worker)
     app.extensions["orbitguard_jobs"] = jobs
     atexit.register(jobs.shutdown)
-    from orbitguard.live import create_blueprint
+    from orbitguard.live import create_blueprint, record_forecast
     app.register_blueprint(create_blueprint())
 
     def response(data, status=200):
@@ -262,6 +262,7 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
         if not isinstance(event_id, str) or not event_id or len(event_id) > 128:
             raise ValueError("event_id must be a nonempty string of at most 128 characters")
         update = ml_service.replay_update(event_id, payload.get("message_count"))
+        record_forecast(update.get("forecast"))
         forecast = update.get("forecast") or {}
         _audit("forecast", {"source": "historical_replay", "update_id": update.get("update_id"), "event_id": event_id,
                             "message_count": update.get("message_count"), "alert": update.get("alert"),
@@ -277,7 +278,9 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
             raise ValueError("history must contain between 1 and 1000 CDM objects")
         if not all(isinstance(row, dict) for row in history):
             raise ValueError("Each history entry must be a CDM object")
-        return response(ml_service.forecast(history))
+        result = ml_service.forecast(history)
+        record_forecast(result)
+        return response(result)
 
     @app.get("/api/scenarios")
     def scenarios():

@@ -192,6 +192,19 @@ function summarise(r: Json): string {
   return r.kind;
 }
 
+function StageTimings({timings: t}: {timings?: Json}) {
+  if (!t) return null;
+  const timings: Json = t;
+  const stages: Json[] = timings?.stages || [];
+  const total = timings?.total_s;
+  if (!stages.length || !finite(total) || total <= 0) return null;
+  return <Section title="Where the time went" label="Stage timings" sub="Wall-clock time of the last run on this server, measured around each stage. A catalogue-wide sweep like this runs as a background job; the decision for each new message takes milliseconds.">
+    <p><strong>{number(timings.n_burns, 0)} burns × {number(timings.n_objects, 0)} objects</strong> screened in <strong>{number(timings.stages.find((s: Json) => s.key === 'burn_screen')?.seconds, 2)} s</strong>; whole analysis {number(total, 1)} s{finite(timings.pairs_per_s) && <>. Throughput: <strong>{number(timings.pairs_per_s, 0)}</strong> burn-object pairs per second ({number(timings.burn_object_pairs, 0)} pairs)</>}.</p>
+    <div className="stage-bar" role="img" aria-label="Share of the analysis time spent in each stage">{stages.map((s, i) => <span key={s.key} className={`stage-seg s${i % 5}`} style={{width: `${Math.max(0.5, 100 * s.seconds / total)}%`}} title={`${s.label}: ${number(s.seconds, 2)} s`}/>)}</div>
+    <ul className="stage-list">{stages.map((s, i) => <li key={s.key}><span className={`stage-key s${i % 5}`}/><span>{s.label}</span><span className="num mono">{number(s.seconds, 2)} s</span><span className="muted small num">{number(100 * s.seconds / total, 0)}%</span></li>)}</ul>
+  </Section>;
+}
+
 export function LiveCatalogue() {
   const events = useAsync<Json>('/live/events');
   const [norad, setNorad] = useState(ISS);
@@ -241,6 +254,7 @@ export function LiveCatalogue() {
         </div>
       </section>
       <Recommendation facts={f}/>
+      <StageTimings timings={f.stage_timings}/>
       <Section title="Candidate burns" label="Candidate burns" sub={`Six directions × six sizes × four lead times. Accepted means the miss target is met and every close approach within 5 km, old or new, stays at or below Pc ${probability(f.burns?.policies?.pc_threshold, 0)} even at twice the assumed error.`}>
         <BurnTable top={f.burns?.top || []}/>
       </Section>
