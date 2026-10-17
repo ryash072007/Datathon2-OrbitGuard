@@ -81,3 +81,15 @@ def test_backend_selection(monkeypatch, facts):
     assert b.backend_used == "template" and any("LLM_BASE_URL" in i for i in b.issues)
     b = make_brief_from_facts(facts, "does-not-exist")
     assert b.backend_used == "template" and b.issues
+
+
+def test_llm_view_is_compact_and_grounded(facts):
+    import json
+
+    from src.brief.backends import build_prompt, llm_view
+    view = llm_view(facts)
+    assert len(view["burns"]) <= 3 and isinstance(view["miss_km"], str)
+    prompt = build_prompt(facts)
+    assert "\n\nFACTS (JSON):\n" in prompt
+    # every number the model is shown must itself pass the guard
+    assert check_grounding(json.dumps(view), facts) == []

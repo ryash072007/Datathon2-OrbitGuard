@@ -61,6 +61,16 @@ python -m src.app.run                                    # Flask dashboard on 0.
 LLM backends: `LLM_BACKEND=llamacpp` with `LLM_MODEL_PATH` (GGUF), or `openai` with `LLM_BASE_URL`, `LLM_MODEL`,
 optional `LLM_API_KEY`. Any number in LLM output that is not in the facts triggers a fall back to the template.
 
+Local Granite test on Windows (little-endian GGUF; the VM needs a big-endian conversion, see `docs/porting.md`):
+
+```
+.venv/Scripts/python -m pip install llama-cpp-python --only-binary=:all: --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# download granite-3.3-2b-instruct-Q4_K_M.gguf from ibm-granite/granite-3.3-2b-instruct-GGUF into models/llm/
+LLM_BACKEND=llamacpp LLM_MODEL_PATH=models/llm/granite-3.3-2b-instruct-Q4_K_M.gguf python -m src.brief.run --primary 25544
+```
+
+The dashboard brief panel reports the backend used and a grounded badge through the same `make_brief_from_facts` API.
+
 ## Credits
 
 - ESA Collision Avoidance Challenge dataset: https://zenodo.org/records/4463683 and https://kelvins.esa.int/collision-avoidance-challenge/

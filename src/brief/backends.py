@@ -12,16 +12,50 @@ import urllib.error
 import urllib.request
 
 SYSTEM_PROMPT = (
-    "You are a space-operations analyst writing a human-in-the-loop decision brief for a satellite operator. "
-    "Use ONLY the facts in the JSON provided and never invent or compute new numbers; every number you write "
-    "must appear in the JSON (rounding is fine). You support the decision, you do not make it. "
-    "Write markdown with exactly these sections: Situation, Risk, Options (the top 3 burns with trade-offs), "
-    "Consequence if no action, Recommendation, Uncertainties. Maximum 250 words."
+    "You are a space-operations analyst writing a decision-support brief for a satellite operator. "
+    "The operator decides; you never command. Use ONLY the facts in the JSON. Copy every number exactly as "
+    "it appears in the JSON (the display strings), never compute, convert or invent numbers, and do not "
+    "number your sections. Write markdown with exactly these six headings in this order: "
+    "## Situation, ## Risk, ## Options, ## Consequence if no action, ## Recommendation, ## Uncertainties. "
+    "Situation: names, NORAD ids, closest-approach time, miss distance. Risk: collision probability and its "
+    "caveat. Options: one bullet per burn in 'burns' (id, direction, delta-v, miss, new close approaches) "
+    "then one trade-off sentence. Consequence: fragments and satellites exposed. Recommendation: the first "
+    "burn that meets the target with no new close approach, else say escalate. Uncertainties: two short "
+    "sentences. Maximum 220 words."
 )
 
 
+def _f(x, nd: int) -> str:
+    return f"{x:.{nd}f}" if isinstance(x, (int, float)) else str(x)
+
+
+def llm_view(facts: dict) -> dict:
+    """Compact facts for the LLM: only what the brief needs, key numbers pre-formatted as display strings."""
+    ev = facts.get("event", {})
+    p, t = ev.get("primary", {}), ev.get("threat", {})
+    risk, burns, cons = facts.get("risk", {}), facts.get("burns", {}), facts.get("consequence") or {}
+    view: dict = {
+        "primary": f"{p.get('name')} (NORAD {p.get('norad')})", "threat": f"{t.get('name')} (NORAD {t.get('norad')})",
+        "closest_approach_utc": ev.get("tca_utc"), "miss_km": _f(ev.get("miss_km"), 2),
+        "collision_probability": f"{risk['live_pc']:.1e}" if risk.get("live_pc") is not None else None,
+        "probability_caveat": risk.get("pc_note"),
+        "no_burn_miss_km": _f(burns.get("baseline_miss_km"), 2), "target_miss_km": _f(burns.get("target_km"), 0),
+        "burns": [{"id": b.get("burn_id"), "direction": b.get("direction"), "delta_v_m_per_s": _f(b.get("dv_mps"), 2),
+                   "miss_km": _f(b.get("miss_km_threat"), 1), "new_close_approaches": b.get("new_conjunctions"),
+                   "meets_target": "yes" if b.get("feasible") else "no"} for b in burns.get("top", [])[:3]],
+    }
+    if cons:
+        view["consequence"] = {
+            "catastrophic": "yes" if cons.get("catastrophic") else "no",
+            "fragments_over_10cm": f"{cons['fragments_true']:,.0f}" if cons.get("fragments_true") is not None else None,
+            "satellites_with_encounter": f"{cons.get('n_sats_ge1_encounter'):,}",
+            "satellites_considered": f"{cons.get('n_sats_considered'):,}",
+            "horizon_days": (cons.get("assumptions") or {}).get("horizon_days")}
+    return view
+
+
 def build_prompt(facts: dict) -> str:
-    return SYSTEM_PROMPT + "\n\nFACTS (JSON):\n" + json.dumps(facts, separators=(",", ":"), default=str)
+    return SYSTEM_PROMPT + "\n\nFACTS (JSON):\n" + json.dumps(llm_view(facts), separators=(",", ":"), default=str)
 
 
 class Backend:
@@ -53,12 +87,12 @@ class LlamaCppBackend(Backend):
             raise RuntimeError("llama_cpp_python is not installed in this environment "
                                "(it ships in the LinuxONE Jupyter ML image)") from exc
         if LlamaCppBackend._llm is None:
-            LlamaCppBackend._llm = Llama(model_path=path, n_ctx=int(os.environ.get("LLM_N_CTX", "4096")),
-                                         verbose=False)
+            LlamaCppBackend._llm = Llama(model_path=path, n_ctx=max(4096, int(os.environ.get("LLM_N_CTX", "4096"))),
+                                         n_threads=os.cpu_count() or 4, verbose=False)
         system, _, user = prompt.partition("\n\nFACTS (JSON):\n")
         out = LlamaCppBackend._llm.create_chat_completion(
             messages=[{"role": "system", "content": system}, {"role": "user", "content": "FACTS (JSON):\n" + user}],
-            temperature=0.0, max_tokens=600)
+            temperature=0.2, max_tokens=700)
         return out["choices"][0]["message"]["content"].strip()
 
 
