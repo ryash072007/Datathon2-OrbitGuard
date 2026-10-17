@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 export ORBITGUARD_ROOT=$PWD OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 mkdir -p artifacts/pipeline
 log() { echo "[$(date -u +%FT%TZ)] $*" | tee -a artifacts/pipeline/status.log; }
-for step in "train" "evaluate" "validate-physics" "benchmark-planner --count 50 --runtime-repetitions 20" "benchmark-runtime"; do
+for step in "train" "evaluate" "audit-accuracy" "train-triage" "evaluate-triage" "train-guard" "evaluate-guard" "validate-physics" "benchmark-planner --count 50 --runtime-repetitions 20" "benchmark-runtime"; do
   name=${step%% *}
   log "START $name"
   start=$(date +%s)
@@ -15,7 +15,9 @@ for step in "train" "evaluate" "validate-physics" "benchmark-planner --count 50 
   if .venv/bin/python -m orbitguard $step > "artifacts/pipeline/$name.out" 2>&1; then
     log "OK $name $(( $(date +%s) - start ))s"
   else
-    log "FAIL $name rc=$? $(( $(date +%s) - start ))s"
+    status=$?
+    log "FAIL $name rc=$status $(( $(date +%s) - start ))s"
+    exit "$status"
   fi
 done
 log "DONE"

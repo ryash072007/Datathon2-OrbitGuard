@@ -32,6 +32,6 @@ ORBITGUARD_BASE_URL=http://127.0.0.1:8000 npm run test:smoke
 ORBITGUARD_UI_FIXTURES=1 npm run test:smoke
 ```
 
-Set `CHROME_PATH` to the executable of an installed Chromium-compatible browser if the default macOS Chrome path does not apply. The test checks navigation, browser runtime errors and mobile overflow. Fixture mode also checks job completion, policy selection and that historical replay submits only the selected prefix of messages.
+Set `CHROME_PATH` to the executable of an installed Chromium-compatible browser if the default macOS Chrome path does not apply. The test checks navigation, browser runtime errors and mobile overflow. Fixture mode also checks evidence downloads, job failure, empty/loading/retry states, stale responses, accuracy interpretation, ordered server-driven historical replay, alert transitions and replay failure recovery. Live mode processes a real historical prefix through the server replay endpoint. Set `ORBITGUARD_SMOKE_SCREEN=1` to include a real screening job in live mode.
 
 Screenshots are written under ignored `test-results/`. Test fixtures never enter production source code or the build.

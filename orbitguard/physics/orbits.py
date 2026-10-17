@@ -76,22 +76,28 @@ def closest_approaches(a: Trajectory, b: Trajectory, horizon_seconds: float,
     Burn discontinuities are split explicitly. A finer independent pass is
     used for evaluated recommendations, reducing sensitivity to grid spacing.
     """
-    times = np.arange(0.0, horizon_seconds, step_seconds)
-    times = np.unique(np.r_[times, horizon_seconds,
-                           *[t for t in (a.burn_time_seconds, b.burn_time_seconds) if t is not None]])
-    difference = b(times) - a(times)
-    slopes = np.einsum("ij,ij->j", difference[:3], difference[3:])
-
-    def slope(time):
-        diff = b(time) - a(time)
-        return float(diff[:3] @ diff[3:])
-
     found = [0.0, float(horizon_seconds)]
-    for i in np.where((slopes[:-1] <= 0) & (slopes[1:] >= 0))[0]:
-        if slopes[i] == 0:
-            found.append(float(times[i]))
-        else:
-            found.append(float(brentq(slope, times[i], times[i + 1], xtol=1e-7)))
+    boundaries = sorted(set(found + [time for time in (a.burn_time_seconds, b.burn_time_seconds)
+                                     if time is not None and 0 < time < horizon_seconds]))
+    for start, end in zip(boundaries[:-1], boundaries[1:]):
+        middle = (start + end) / 2
+        segment_a = a.after if a.after is not None and middle >= a.burn_time_seconds else a.before
+        segment_b = b.after if b.after is not None and middle >= b.burn_time_seconds else b.before
+        times = np.r_[np.arange(start, end, step_seconds), end]
+        difference = segment_b(times) - segment_a(times)
+        slopes = np.einsum("ij,ij->j", difference[:3], difference[3:])
+
+        def slope(time):
+            diff = segment_b(time) - segment_a(time)
+            return float(diff[:3] @ diff[3:])
+
+        for index in np.where((slopes[:-1] <= 0) & (slopes[1:] >= 0))[0]:
+            found.append(float(brentq(slope, times[index], times[index + 1], xtol=1e-7)))
+    for boundary in boundaries[1:-1]:
+        before = np.nextafter(boundary, -np.inf)
+        left, right = b(before) - a(before), b(boundary) - a(boundary)
+        if left[:3] @ left[3:] <= 0 <= right[:3] @ right[3:]:
+            found.append(float(boundary))
     return sorted(set(found))
 
 

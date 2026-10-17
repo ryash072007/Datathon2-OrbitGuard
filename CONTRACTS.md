@@ -17,6 +17,7 @@ All values returned by services must be JSON serializable and finite (use null r
 - `list_events(limit=100) -> list[dict]`
 - `get_event(event_id: str) -> dict` (historical replay; label future/reference values explicitly)
 - `forecast(history: list[dict]) -> dict`
+- `replay_update(event_id: str, message_count: int) -> dict`: process the historical prefix and compare its alert with the preceding prefix, without reading evaluation labels.
 - `evidence() -> dict`
 
 `orbitguard.physics.service.PhysicsService(root)`:
@@ -33,6 +34,7 @@ Use ValueError for invalid user inputs and KeyError for unknown IDs. Return stru
 - GET `/api/events?limit=100`: `{events: [...]}`
 - GET `/api/events/<event_id>`: historical event detail
 - POST `/api/forecast`: `{history: [CDM rows...]}` -> ML forecast
+- POST `/api/replay/update`: `{event_id: str, message_count: int}` -> `{update_id, source: historical_replay, message_count, total_messages, forecast, alert: {state, previous_state, changed}, action, received_at, completed_at, processing_ms, scope}`
 - GET `/api/scenarios`: `{scenarios: [...]}`
 - GET `/api/scenarios/<scenario_id>`: synthetic scenario detail
 - POST `/api/screen`: `{scenario_id: str, overrides?: {}}` -> 202 `{job_id, status}`
@@ -52,6 +54,10 @@ Screening result: `scenario_id`, `source: synthetic`, `status`, `candidates_eval
 Agents may add fields, but must communicate schema changes early. Frontend must tolerate absent optional fields and clearly display missing evidence.
 
 ## Evaluation invariants
+
+Replay is stateless and request-driven, not a live ingestion service or durable message broker. The server selects chronologically ordered prefixes from historical inputs; client-supplied histories and final labels are not accepted by the replay endpoint. The stable update ID fingerprints the selected inputs and forecast (excluding timing), so repeated requests do not create additional alerts or screening jobs. Timings are newly measured on every request. Alert transitions always compare adjacent historical prefixes, not the last request received; out-of-order requests cannot mutate another replay. A processing failure publishes no successful update. The UI ignores superseded responses, pauses on failure, offers retry, and waits for completion before advancing playback.
+
+`high_risk` means the default forecast is at least 10^-6; `additional_review` is the separate experimental learned escalation; `monitor` is not a safety clearance. Processing latency includes loading/selecting the prefix and forecasting both current and preceding states. Browser round-trip timing also includes transport and response handling, not upstream observation latency. These are distinct from existing single-forecast benchmark timings. No replay alert automatically maps anonymised ESA encounters to synthetic geometry or commands a manoeuvre.
 
 - Original ESA test labels are evaluation-only. Read only event_id/true_risk from the private file.
 - Features use messages at least 2 days before TCA. Split by event.

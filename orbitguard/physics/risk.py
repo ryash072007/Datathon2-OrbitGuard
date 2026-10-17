@@ -88,7 +88,10 @@ def disk_probability(mean_m, covariance_m2, hard_body_radius_m: float) -> float:
     with warnings.catch_warnings():
         warnings.simplefilter("error", IntegrationWarning)
         try:
-            result, error = quad(integrand, -1, 1, epsabs=1e-13, epsrel=1e-8, limit=150)
+            points = sorted({float(point) for offset in (-12, -8, -4, -1, 0, 1, 4, 8, 12)
+                             if -1 < (point := (mx + offset * sx) / radius) < 1})
+            result, error = quad(integrand, -1, 1, points=points,
+                                 epsabs=1e-13, epsrel=1e-8, limit=150)
         except IntegrationWarning as exc:
             raise ValueError(f"Collision-probability quadrature failed: {exc}") from exc
     if not math.isfinite(result) or error > max(1e-11, result * 1e-5):
@@ -116,4 +119,3 @@ def rtn_covariance(state, sigma_rtn_m, scale: float = 1.0) -> np.ndarray:
     transverse = np.cross(normal, radial)
     rotation = np.column_stack((radial, transverse, normal))
     return rotation @ np.diag((np.asarray(sigma_rtn_m) * scale) ** 2) @ rotation.T
-

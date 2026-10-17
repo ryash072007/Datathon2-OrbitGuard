@@ -1,5 +1,7 @@
 # Submission checklist
 
+Accuracy-review update: see [JUDGING_GUIDE.md](JUDGING_GUIDE.md) and [ACCURACY_REVIEW.md](ACCURACY_REVIEW.md). Checked items below describe the earlier deployment, not automatic approval of revised source. Re-run the final tests/evidence and capture fresh screenshots before recording. New experiments remain explicitly experimental; the default baseline is preserved.
+
 Status as of 2026-10-17 ~17:10 SGT. [x] = done and verified, [ ] = team action needed.
 
 ## Build and evidence

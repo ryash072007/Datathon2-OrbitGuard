@@ -1,0 +1,107 @@
+{
+  "status": "complete",
+  "scope": "Local numerical audit and regression verification; not operational validation or a new LinuxONE measurement.",
+  "source_state": {
+    "git_head": "cf745ed174bbc79dde3c7745e23f74b9a4ccc0ab",
+    "working_tree": "Uncommitted physics fixes included; hashes describe final audited physics source and tests.",
+    "sha256_method": "SHA256 of sorted compact JSON mapping each relative physics source/fixture/test path to SHA256 of its bytes.",
+    "sha256": "56260c4012583d7a69ef8323ee4e248811b42f170730cc12c7874fabada6c89c",
+    "files_sha256": {
+      "orbitguard/physics/__init__.py": "a3ab46e5b2fa7f216a1330804ffeb5383e7a63b338bfeac07a8901861bbef5b2",
+      "orbitguard/physics/cli.py": "201931bd368e7ecccabf773125ed7bf4bb4a59e7cd6122b8b66e64c5eafb699c",
+      "orbitguard/physics/fixtures/nasa_circular.json": "21f046881a20426fb31420384a928bd0939e4e63735baa0b5e26ba2517092f44",
+      "orbitguard/physics/orbits.py": "3c377e5852ed8a41e420c7310217ad1a4eedc2afdfae47d62fee04127e0b8d03",
+      "orbitguard/physics/planner.py": "2626a706b9eda52027bff6aba5c558d83af5a088aecbcfbed985e63e2fa6dee7",
+      "orbitguard/physics/risk.py": "9af4ac672e1119de35b128c8712fa078148b277d6c89135684cc738e918864fb",
+      "orbitguard/physics/scenarios.py": "e2b686a585d718d11117bf1c8215277d1371279bbccc98ce47905b0a53ad7b1a",
+      "orbitguard/physics/service.py": "542260769455b290725e9b7bf6c2faea92e5e1eb7e66bc8b289589f697198afb",
+      "orbitguard/physics/validation.py": "38507f0d00733fb7c06a04ea73b120b10eb3aa2eeeeaeb6d50ff1b22cd7eba84",
+      "tests/test_physics.py": "5c4be8591c710d034b8e511e1fac29488a066179df6e3160933a661d4550e28d"
+    }
+  },
+  "environment": {
+    "architecture": "aarch64",
+    "platform": "Linux-6.8.0-1062-oracle-aarch64-with-glibc2.35",
+    "python_version": "3.13.15",
+    "numpy_version": "2.5.4",
+    "scipy_version": "1.18.1"
+  },
+  "regression_tests": {
+    "method": "Added regressions before fixes; observed failures, then passing targeted and complete pytest runs.",
+    "full_suite_command": ".venv313/bin/python -m pytest -q",
+    "full_suite_passed": 40,
+    "full_suite_elapsed_seconds": 48.32,
+    "physics_tests_passed": 17,
+    "new_physics_regression_cases": 4
+  },
+  "fixes": [
+    "Search smooth trajectory segments using the correct one-sided velocity at each impulse, preventing missed pre-burn closest approaches.",
+    "Provide Gaussian-scale quadrature breakpoints so a concentrated near-certain collision cannot silently integrate to zero.",
+    "Publish tightly rechecked risks and encounters, recompute introduced-secondary flags, and omit withheld recommendation trajectories.",
+    "Distinguish numerically valid threshold rejection from verification success using verification.status=rejected."
+  ],
+  "published_and_analytic_validation": {
+    "command": ".venv313/bin/python -m orbitguard.physics.cli validate-physics --root /tmp/orbitguard-physics-audit",
+    "passed": true,
+    "published_reference_case_count": 3,
+    "max_published_relative_error": 0.000002879678198342006,
+    "numerical_checks_passed": 7,
+    "reference_commit": "ce0f00722c56808755ee0adbe47a4e3d56439484",
+    "artifact_sha256": "44815b2d84201181100014642ac293af75bb7079ebdef464c8a97863779c2ee2"
+  },
+  "synthetic_stress_test": {
+    "command": ".venv313/bin/python -m orbitguard.physics.cli benchmark-planner --count 50 --runtime-repetitions 0 --root /tmp/orbitguard-physics-audit",
+    "status": "complete",
+    "scenario_count": 50,
+    "failed_scenarios": 0,
+    "suite_sha256": "e00ed4e37bb3be426dcae08e9abee7b2014d3069256bfe89185c33448e9d5d95",
+    "policies": {
+      "no_action": {
+        "acceptable_plan_count": 10,
+        "acceptable_plan_rate": 0.2,
+        "abstentions": 0,
+        "correct_abstentions": 0,
+        "secondary_hazards_introduced": 0,
+        "unsafe_selected_count": 40,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0,
+        "mean_worst_pc": 0.016407180637225988,
+        "max_worst_pc": 0.028320781896583408
+      },
+      "pair_only": {
+        "acceptable_plan_count": 20,
+        "acceptable_plan_rate": 0.4,
+        "abstentions": 10,
+        "correct_abstentions": 10,
+        "secondary_hazards_introduced": 20,
+        "unsafe_selected_count": 20,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0.0375,
+        "mean_worst_pc": 0.010818567244685166,
+        "max_worst_pc": 0.028739930454824154
+      },
+      "orbitguard": {
+        "acceptable_plan_count": 40,
+        "acceptable_plan_rate": 0.8,
+        "abstentions": 10,
+        "correct_abstentions": 10,
+        "secondary_hazards_introduced": 0,
+        "unsafe_selected_count": 0,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0.0375,
+        "mean_worst_pc": 0.00002533984886067139,
+        "max_worst_pc": 0.000054871294644743605
+      }
+    },
+    "headline_outcomes_changed": false,
+    "artifact_sha256": "00948dc6fb873c1844f416d993dfa2b339d7caeb90c49962d6032431ee5a3409",
+    "provenance": "Scratch run started before the final verification.status label clarification and removal of a redundant assignment; acceptance, risk integration, encounter search, and tight-risk reporting algorithms match the audited source. A fresh final-source LinuxONE run is required for release evidence.",
+    "timing_limitation": "Local shared VM ran other tests concurrently; these durations are not a controlled performance benchmark."
+  },
+  "limitations": [
+    "Pinned NASA cases validate selected probability integrals; they do not validate the complete planner or operational orbital predictions.",
+    "Synthetic scenarios use two-body gravity, prescribed independent RTN position uncertainty, a short rectilinear encounter approximation, and instantaneous burns.",
+    "Only a finite candidate grid and three uncertainty scales are screened; this is not a global optimum or safety guarantee.",
+    "Slow co-orbital cases and partial horizon-boundary encounters remain outside the declared scenario suite; off-TCA boundary points are skipped by the existing model."
+  ]
+}

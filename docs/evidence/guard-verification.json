@@ -1,0 +1,12 @@
+{
+  "regression_output": "..................................................                       [100%]\n50 passed in 7.47s\n",
+  "runtime": {
+    "architecture": "s390x",
+    "count": 100,
+    "warmup": 20,
+    "scope": "Forecast service calls including supplemental review; three escalated historical events; network excluded",
+    "p50_ms": 8.297136999317445,
+    "p95_ms": 8.621312000013859,
+    "source_sha256": "efd60b661012606b26562a5794a03f028176c655c5a0bc1d1d31645d834cb981"
+  }
+}

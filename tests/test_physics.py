@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pytest
 
-from orbitguard.physics.orbits import conservation_errors, propagate
+from orbitguard.physics.orbits import Trajectory, closest_approaches, conservation_errors, propagate
 from orbitguard.physics.planner import candidate_grid, screen_scenario, validate_overrides
 from orbitguard.physics.risk import collision_probability, disk_probability
 from orbitguard.physics.scenarios import get_scenario
@@ -88,3 +88,53 @@ def test_service_missing_evidence_and_unknown_scenario(tmp_path):
     assert len(detail["objects"]) == 8
     assert detail["source"] == "synthetic"
     json.dumps(detail, allow_nan=False)
+
+
+def test_closest_approach_before_burn_uses_left_hand_velocity():
+    def stationary(times):
+        return np.zeros((6,) if np.ndim(times) == 0 else (6, len(times)))
+
+    def before(times):
+        values = np.asarray(times)
+        return np.array([values - 4, values * 0 + 1, values * 0,
+                         values * 0 + 1, values * 0, values * 0])
+
+    def after(times):
+        values = np.asarray(times)
+        return np.array([values * 0 + 1, 1 - 10 * (values - 5), values * 0,
+                         values * 0, values * 0 - 10, values * 0])
+
+    times = closest_approaches(Trajectory(stationary), Trajectory(before, after, 5), 10, 10)
+    assert times == pytest.approx([0, 4, 5.1, 10])
+
+
+@pytest.mark.parametrize("mean", [[0, 0], [100, 100]])
+def test_concentrated_gaussian_inside_large_disk_is_not_zero(mean):
+    assert disk_probability(mean, np.eye(2), 1e6) == pytest.approx(1, abs=1e-10)
+
+
+def test_tighter_verification_updates_risks_and_withholds_path(monkeypatch):
+    from orbitguard.physics import planner
+
+    monkeypatch.setattr(planner, "candidate_grid", lambda budget: [(None, 0), (300, 0.01)])
+
+    def candidate(scenario, paths, burn, delta_v, threshold, *, tight=False):
+        primary = threshold * (2 if burn is None else 0.5)
+        secondary = threshold * (2 if tight and burn is not None else 0)
+        worst = max(primary, secondary)
+        return {"candidate_id": "no-action" if burn is None else "burn", "burn_time_seconds": burn,
+                "delta_v_mps": delta_v, "primary_pc": primary, "worst_secondary_pc": secondary,
+                "worst_pc": worst, "accepted": worst <= threshold,
+                "primary_accepted": primary <= threshold, "valid": True,
+                "rejection_reasons": [], "encounters": []}, paths["A"]
+
+    monkeypatch.setattr(planner, "_candidate", candidate)
+    result = screen_scenario(get_scenario("clear-neighbourhood"))
+    assert result["recommendation"] is None
+    pair = result["policies"]["pair_only"]
+    assert pair["worst_secondary_pc"] == 2 * result["risk_threshold"]
+    assert pair["worst_pc"] == pair["verification"]["worst_pc"]
+    assert pair["verification"]["status"] == "rejected"
+    assert pair["introduced_secondary_hazard"]
+    assert not pair["accepted"]
+    assert "A_orbitguard" not in {item["object_id"] for item in result["trajectories"]}

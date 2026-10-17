@@ -243,6 +243,14 @@ def create_app(root: str | Path | None = None, *, ml_service=None, physics_servi
     def event(event_id):
         return response(ml_service.get_event(event_id))
 
+    @app.post("/api/replay/update")
+    def replay_update():
+        payload = body()
+        event_id = payload.get("event_id")
+        if not isinstance(event_id, str) or not event_id or len(event_id) > 128:
+            raise ValueError("event_id must be a nonempty string of at most 128 characters")
+        return response(ml_service.replay_update(event_id, payload.get("message_count")))
+
     @app.post("/api/forecast")
     def forecast():
         history = body().get("history")

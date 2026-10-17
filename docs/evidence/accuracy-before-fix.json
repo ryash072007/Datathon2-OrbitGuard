@@ -1,0 +1,415 @@
+{
+  "status": "ready",
+  "generated_at": "2026-10-17T10:50:20.965731+00:00",
+  "architecture": "s390x",
+  "evaluation_role": "retrospective_recheck",
+  "test_events": 2167,
+  "high_risk_events": 150,
+  "methods": {
+    "latest_baseline": {
+      "name": "model",
+      "challenge_loss": 0.6939612611815035,
+      "f2": 0.7390745501285347,
+      "precision": 0.6460674157303371,
+      "recall": 0.7666666666666667,
+      "average_precision": 0.5881619678263414,
+      "high_risk_log_rmse": 0.7161627656576055,
+      "top_10_percent_recall": 0.78,
+      "tp": 115,
+      "fp": 63,
+      "fn": 35,
+      "tn": 1954,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.2086762272646325,
+      "log10_rmse": 9.637672334670974,
+      "classification_accuracy": 0.9547761882787263,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 115,
+        "false_positive": 63,
+        "false_negative": 35,
+        "true_negative": 1954
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.6928421847843321,
+        0.827173684886027
+      ],
+      "precision_ci95": [
+        0.5734106653703589,
+        0.7125527245916349
+      ]
+    },
+    "learned_residual": {
+      "name": "model",
+      "challenge_loss": 1.8276523747487965,
+      "f2": 0.47101449275362317,
+      "precision": 0.7222222222222222,
+      "recall": 0.43333333333333335,
+      "average_precision": 0.4006855567617699,
+      "high_risk_log_rmse": 0.92782043317781,
+      "top_10_percent_recall": 0.49333333333333335,
+      "tp": 65,
+      "fp": 25,
+      "fn": 85,
+      "tn": 1992,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 15.152476912662607,
+      "log10_rmse": 16.566438201700464,
+      "classification_accuracy": 0.949238578680203,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 65,
+        "false_positive": 25,
+        "false_negative": 85,
+        "true_negative": 1992
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.35667590320996057,
+        0.5133201293724496
+      ],
+      "precision_ci95": [
+        0.6220477250293879,
+        0.8042031080531336
+      ]
+    },
+    "high_risk_shrinkage": {
+      "name": "model",
+      "challenge_loss": 0.6840199281752084,
+      "f2": 0.7390745501285347,
+      "precision": 0.6460674157303371,
+      "recall": 0.7666666666666667,
+      "average_precision": 0.5881619678263414,
+      "high_risk_log_rmse": 0.7110145713661885,
+      "top_10_percent_recall": 0.78,
+      "tp": 115,
+      "fp": 63,
+      "fn": 35,
+      "tn": 1954,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.207575944674827,
+      "log10_rmse": 9.633028401298336,
+      "classification_accuracy": 0.9547761882787263,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 115,
+        "false_positive": 63,
+        "false_negative": 35,
+        "true_negative": 1954
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.6928421847843321,
+        0.827173684886027
+      ],
+      "precision_ci95": [
+        0.5734106653703589,
+        0.7125527245916349
+      ]
+    }
+  },
+  "shrinkage": {
+    "method": "high_risk_shrinkage",
+    "coefficient": 0.9037491901091798,
+    "source": "official training events only",
+    "training_data_sha256": "ba47ce80580d5d6ff523ddc1d724901dbdfb3a5afdc5e755f0ca2bcefe6e4eb6",
+    "frozen_at": "2026-10-17T10:50:16.819682+00:00",
+    "seed": 42,
+    "rule": "Least-squares slope toward log10 Pc=-6, fitted only on high-risk training targets with high-risk latest values. Low-risk forecasts and all alert decisions are preserved.",
+    "default_changed": false,
+    "status": "experimental",
+    "cv_baseline": {
+      "name": "model",
+      "challenge_loss": 0.8037528478120637,
+      "f2": 0.41083916083916083,
+      "precision": 0.1525974025974026,
+      "recall": 0.7121212121212122,
+      "average_precision": 0.15583677896245632,
+      "high_risk_log_rmse": 0.574641754066996,
+      "top_10_percent_recall": 0.7121212121212122,
+      "tp": 47,
+      "fp": 261,
+      "fn": 19,
+      "tn": 7966,
+      "event_count": 8293,
+      "high_risk_event_count": 66,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.166918582794193,
+      "log10_rmse": 9.571631553074067,
+      "classification_accuracy": 0.9662365850717473,
+      "always_low_risk_accuracy": 0.9920414807669119,
+      "confusion_matrix": {
+        "true_positive": 47,
+        "false_positive": 261,
+        "false_negative": 19,
+        "true_negative": 7966
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.5936275059135345,
+        0.8072805002019328
+      ],
+      "precision_ci95": [
+        0.11673650054312777,
+        0.19701735114389896
+      ]
+    },
+    "cv_challenger": {
+      "name": "model",
+      "challenge_loss": 0.7921184709510443,
+      "f2": 0.41083916083916083,
+      "precision": 0.1525974025974026,
+      "recall": 0.7121212121212122,
+      "average_precision": 0.15459544185054916,
+      "high_risk_log_rmse": 0.5704676045935705,
+      "top_10_percent_recall": 0.7121212121212122,
+      "tp": 47,
+      "fp": 261,
+      "fn": 19,
+      "tn": 7966,
+      "event_count": 8293,
+      "high_risk_event_count": 66,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.164449117088447,
+      "log10_rmse": 9.566393579704867,
+      "classification_accuracy": 0.9662365850717473,
+      "always_low_risk_accuracy": 0.9920414807669119,
+      "confusion_matrix": {
+        "true_positive": 47,
+        "false_positive": 261,
+        "false_negative": 19,
+        "true_negative": 7966
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.5936275059135345,
+        0.8072805002019328
+      ],
+      "precision_ci95": [
+        0.11673650054312777,
+        0.19701735114389896
+      ]
+    },
+    "cv_loss_difference": {
+      "repeats": 1000,
+      "valid_repeats": 1000,
+      "quantity": "challenger minus latest-risk baseline ESA loss; negative favours challenger",
+      "ci95": [
+        -0.09597092034175579,
+        0.07030939582763898
+      ]
+    },
+    "folds": [
+      {
+        "coefficient": 0.8618137212829102,
+        "train_events": 5528,
+        "validation_events": 2765
+      },
+      {
+        "coefficient": 0.939439440451603,
+        "train_events": 5529,
+        "validation_events": 2764
+      },
+      {
+        "coefficient": 0.9141960895191429,
+        "train_events": 5529,
+        "validation_events": 2764
+      }
+    ]
+  },
+  "shrinkage_loss_difference": {
+    "repeats": 1000,
+    "valid_repeats": 1000,
+    "quantity": "challenger minus latest-risk baseline ESA loss; negative favours challenger",
+    "ci95": [
+      -0.05963468161229783,
+      0.031019352589773747
+    ]
+  },
+  "fingerprints": {
+    "model_before": "9da3561c69b4efe2ac088e74e6102106cbcdd78dfad57c50d463b68f0a836fb9",
+    "model_after": "9da3561c69b4efe2ac088e74e6102106cbcdd78dfad57c50d463b68f0a836fb9",
+    "challenger_before_labels": "a6df8f0a609dc7d61e1683fbfd6639f2b464e8a5dbb1350fedb04749370bf671",
+    "challenger_after": "a6df8f0a609dc7d61e1683fbfd6639f2b464e8a5dbb1350fedb04749370bf671",
+    "test_inputs_sha256": "fc4110e979e7d569cb8aa819d450d29311e799115b2fe5b519b8a18eafa37323"
+  },
+  "baseline_missed_event_ids": [
+    "8",
+    "21",
+    "93",
+    "108",
+    "193",
+    "253",
+    "280",
+    "401",
+    "406",
+    "421",
+    "463",
+    "587",
+    "641",
+    "679",
+    "689",
+    "709",
+    "735",
+    "873",
+    "936",
+    "1047",
+    "1051",
+    "1184",
+    "1197",
+    "1253",
+    "1362",
+    "1385",
+    "1460",
+    "1471",
+    "1573",
+    "1615",
+    "1640",
+    "1947",
+    "1989",
+    "2086",
+    "2149"
+  ],
+  "baseline_false_alarm_event_ids": [
+    "50",
+    "97",
+    "109",
+    "114",
+    "216",
+    "224",
+    "262",
+    "365",
+    "393",
+    "409",
+    "447",
+    "451",
+    "512",
+    "531",
+    "552",
+    "560",
+    "591",
+    "601",
+    "661",
+    "666",
+    "677",
+    "706",
+    "780",
+    "782",
+    "805",
+    "811",
+    "885",
+    "899",
+    "908",
+    "927",
+    "972",
+    "975",
+    "988",
+    "1023",
+    "1055",
+    "1179",
+    "1181",
+    "1194",
+    "1229",
+    "1259",
+    "1302",
+    "1326",
+    "1361",
+    "1386",
+    "1525",
+    "1598",
+    "1645",
+    "1733",
+    "1750",
+    "1811",
+    "1821",
+    "1829",
+    "1841",
+    "1849",
+    "1930",
+    "1996",
+    "2004",
+    "2011",
+    "2013",
+    "2031",
+    "2067",
+    "2100",
+    "2154"
+  ],
+  "largest_baseline_errors": [
+    {
+      "event_id": "512",
+      "latest_log10_pc": -3.8350526273781584,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 26.164947372621842
+    },
+    {
+      "event_id": "2154",
+      "latest_log10_pc": -4.000608438280908,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.999391561719094
+    },
+    {
+      "event_id": "1829",
+      "latest_log10_pc": -4.1665341398293085,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.83346586017069
+    },
+    {
+      "event_id": "93",
+      "latest_log10_pc": -30.0,
+      "final_log10_pc": -4.291749111408622,
+      "absolute_log10_error": 25.70825088859138
+    },
+    {
+      "event_id": "811",
+      "latest_log10_pc": -4.478600371884625,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.521399628115375
+    },
+    {
+      "event_id": "988",
+      "latest_log10_pc": -4.63320361671327,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.36679638328673
+    },
+    {
+      "event_id": "2011",
+      "latest_log10_pc": -4.675100502947687,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.324899497052314
+    },
+    {
+      "event_id": "1598",
+      "latest_log10_pc": -4.742081549685941,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.257918450314058
+    },
+    {
+      "event_id": "1811",
+      "latest_log10_pc": -4.743282254022512,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.25671774597749
+    },
+    {
+      "event_id": "975",
+      "latest_log10_pc": -4.817585347565447,
+      "final_log10_pc": -30.0,
+      "absolute_log10_error": 25.182414652434552
+    }
+  ],
+  "interpretation": [
+    "The target is a later ESA risk estimate, not an observed collision.",
+    "Overall accuracy is dominated by low-risk events; compare recall, precision, missed alerts, and ESA loss.",
+    "Intervals quantify sampling uncertainty, not deployment guarantees or collision-probability calibration.",
+    "The public test set was evaluated by earlier project versions; this is a retrospective recheck, not a new blind test.",
+    "The shrinkage candidate is trained and frozen before released labels are loaded, is experimental, and does not replace the default.",
+    "Training folds choose coefficients independently; pooled CV uncertainty does not account for every model-development choice."
+  ]
+}

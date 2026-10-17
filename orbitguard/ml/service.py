@@ -1,11 +1,14 @@
 """Read-only forecasting service; never reads private labels or trains models."""
 from __future__ import annotations
 import json, time
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
 from .model import feature_frame,predict
+from .data import digest
 
 class MLService:
     def __init__(self,root):
@@ -16,6 +19,21 @@ class MLService:
             if not (self.base/'model.joblib').exists(): raise FileNotFoundError('Model not trained; run train first')
             self._model=joblib.load(self.base/'model.joblib'); self._metadata=json.loads((self.base/'model_metadata.json').read_text())
         return self._model
+
+    def _supplemental_review(self, latest, learned):
+        from . import guard
+        policy_path=self.base/'guard_policy.json'
+        if not policy_path.exists(): return None
+        policy=json.loads(policy_path.read_text())
+        model_path=self.base/'model.joblib'
+        if (not model_path.exists() or digest(model_path)!=policy.get('baseline_model_sha256')
+                or digest(Path(guard.__file__))!=policy.get('guard_source_sha256')
+                or digest(Path(__file__).with_name('model.py'))!=policy.get('prediction_source_sha256')):
+            return {'status':'stale','message':'Retrain the supplemental review policy for the current model.'}
+        candidate=float(guard.guard_predictions([latest],[learned],policy)[0])
+        return {'status':'experimental','additional_review':bool(latest < -6 and candidate >= -6),
+                'candidate_log10_pc':candidate,'threshold':policy['threshold'],
+                'message':'Experimental review alert only; the default forecast and manoeuvre planner are unchanged.'}
 
     def _load_events(self):
         if self._events is None:
@@ -51,6 +69,44 @@ class MLService:
             result['reference']={'true_log10_pc':float(preds.loc[event_id,'true_log10_pc']),'evaluation_only':True,'label':'Later ESA reported risk estimate; reference available retrospectively'}
         return result
 
+    def replay_update(self, event_id, message_count):
+        started = time.perf_counter()
+        received_at = datetime.now(timezone.utc).isoformat()
+        rows = self._load_events()
+        selected = rows[rows.event_id == str(event_id)].sort_values('time_to_tca', ascending=False, kind='stable')
+        if selected.empty:
+            raise KeyError(event_id)
+        if type(message_count) is not int or not 1 <= message_count <= min(len(selected), 1000):
+            raise ValueError('message_count must be an integer within the available history (maximum 1000)')
+        history = json.loads(selected.head(message_count).to_json(orient='records'))
+        forecast = self.forecast(history)
+
+        def alert_state(result):
+            if result['forecast_log10_pc'] >= -6:
+                return 'high_risk'
+            if (result.get('supplemental_review') or {}).get('additional_review'):
+                return 'additional_review'
+            return 'monitor'
+
+        state = alert_state(forecast)
+        previous = alert_state(self.forecast(history[:-1])) if message_count > 1 else None
+        identity = json.dumps({'history': history, 'forecast': {
+            key: value for key, value in forecast.items() if key != 'elapsed_ms'
+        }}, sort_keys=True, allow_nan=False)
+        return {
+            'update_id': hashlib.sha256(identity.encode()).hexdigest(),
+            'event_id': str(event_id), 'source': 'historical_replay',
+            'message_count': message_count, 'total_messages': len(selected),
+            'message_time_to_tca_days': history[-1]['time_to_tca'],
+            'received_at': received_at, 'completed_at': datetime.now(timezone.utc).isoformat(),
+            'processing_ms': (time.perf_counter() - started) * 1000,
+            'forecast': forecast,
+            'alert': {'state': state, 'previous_state': previous, 'changed': previous is not None and state != previous},
+            'action': ('Continue monitoring; this is not a safety clearance.' if state == 'monitor'
+                       else 'Operator review required; no automatic manoeuvre.'),
+            'scope': 'Replayed ESA messages, not a live feed. Synthetic planning is a separate demonstration.',
+        }
+
     def forecast(self,history):
         start=time.perf_counter()
         if not isinstance(history,list) or not history or any(not isinstance(r,dict) for r in history): raise ValueError('history must be a nonempty array of CDM objects')
@@ -66,13 +122,49 @@ class MLService:
         numeric_count=sum(k.startswith('latest_') for k in records[0])
         if numeric_count<20: warnings.append('Sparse input features: supply the full ESA CDM schema for benchmark-comparable predictions.')
         if model['metadata']['selected_method']=='latest_baseline': warnings.append('Cross-validation selected the latest-risk baseline; learned challenger is shown in Evidence.')
-        return {'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False}
+        supplemental=self._supplemental_review(float(latest[0]),float(challenger[0]))
+        return {'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
 
     def evidence(self):
         p=self.base/'evidence.json'
         if not p.exists(): return {'status':'missing','message':'No held-out evaluation artifact. Run fetch-data, prepare-data, train, evaluate.','model_ready':(self.base/'model.joblib').exists()}
         result=json.loads(p.read_text())
+        current_model=self.base/'model.joblib'
+        recorded_hash=result.get('validation',{}).get('model_sha256_after_evaluation')
+        prediction_path=Path(__file__).with_name('model.py')
+        recorded_source=result.get('prediction_source_sha256')
+        if ((recorded_hash and (not current_model.exists() or recorded_hash!=digest(current_model)))
+                or (recorded_source and recorded_source!=digest(prediction_path))):
+            return {'status':'stale','message':'The model or prediction code changed. Run evaluate again before quoting its metrics.','model_ready':current_model.exists()}
+        audit_path=self.base/'accuracy_audit.json'
+        if audit_path.exists():
+            audit=json.loads(audit_path.read_text())
+            current_hash=digest(self.base/'model.joblib') if (self.base/'model.joblib').exists() else None
+            prediction_hash=digest(Path(__file__).with_name('model.py'))
+            if (audit.get('fingerprints',{}).get('model_after')==current_hash
+                    and audit.get('fingerprints',{}).get('prediction_source_sha256')==prediction_hash):
+                result['accuracy_audit']=audit
+            else:
+                result['accuracy_audit']={'status':'stale','message':'Run audit-accuracy for the current frozen model.'}
+        triage_path=self.base/'triage_evidence.json'
+        if triage_path.exists():
+            triage=json.loads(triage_path.read_text())
+            triage_model=self.base/'triage.joblib'
+            if (triage_model.exists()
+                    and triage.get('validation',{}).get('model_sha256_after_evaluation')==digest(triage_model)):
+                result['triage_evaluation']=triage
+            else:
+                result['triage_evaluation']={'status':'stale','message':'Run train-triage and evaluate-triage for the current artifact.'}
         curves=self.ranking_curves()
+        guard_path=self.base/'guard_evidence.json'
+        policy_path=self.base/'guard_policy.json'
+        if guard_path.exists() and policy_path.exists():
+            guard=json.loads(guard_path.read_text())
+            fingerprints=guard.get('fingerprints',{})
+            if (fingerprints.get('policy_after')==digest(policy_path)
+                    and current_model.exists() and fingerprints.get('base_model')==digest(current_model)
+                    and guard.get('policy',{}).get('guard_source_sha256')==digest(Path(__file__).with_name('guard.py'))):
+                result['guard_evaluation']=guard
         if curves: result['ranking_curves']=curves
         return result
 

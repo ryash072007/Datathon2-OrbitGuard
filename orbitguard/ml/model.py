@@ -98,7 +98,7 @@ def train_model(root):
         for i,config in enumerate(configs):
             correction=cv_predict(records,latest,y,config)
             for alpha in [.25,.5,1.]:
-                score=metrics(y,clipped(np.clip(np.clip(latest,-12,0)+alpha*correction,-12,0)))
+                score=metrics(y,clipped(np.minimum(latest+alpha*correction,0)))
                 row={'config':config,'alpha':alpha,'metrics':score}; trials.append(row)
                 loss=score['challenge_loss'] if score['challenge_loss'] is not None else float('inf')
                 if score['f2']>=baseline['f2']-.02 and loss<best_loss:
@@ -112,7 +112,7 @@ def train_model(root):
         # History ablation uses the same hyperparameters, only training-fold labels.
         _,latest_records,latest2,y2=_xy(train,history=False)
         ablation_correction=cv_predict(latest_records,latest2,y2,learned['config'])
-        ablation=metrics(y2,clipped(np.clip(np.clip(latest2,-12,0)+learned['alpha']*ablation_correction,-12,0)),'latest_message_features_only_cv')
+        ablation=metrics(y2,clipped(np.minimum(latest2+learned['alpha']*ablation_correction,0)),'latest_message_features_only_cv')
     metadata={'name':'ESA residual gradient boosting','selected_method':best['method'],'selected_alpha':best['alpha'],'learned_alpha':learned['alpha'],'hyperparameters':learned['config'],'seed':SEED,'cutoff_days':CUTOFF,'target_max_time_to_tca_days':1,'feature_count':len(vec.feature_names_),'feature_names':vec.feature_names_,'feature_history':True,'risk_floor_for_fitting':-12,'training_event_sha256':hashlib.sha256(','.join(map(str,ids)).encode()).hexdigest(),'data':quality,'sklearn_version':sklearn.__version__,'numpy_version':np.__version__,'platform':platform.platform(),'architecture':platform.machine(),'frozen_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'fit_elapsed_seconds':time.perf_counter()-started,'selection_rule':'Minimum training-event three-fold CV ESA loss with F2 no more than .02 below clipped latest baseline; baseline candidate included.','cv':{'baseline':baseline,'selected':best,'learned':learned,'history_ablation':ablation},'final_test_labels_accessed':False}
     model={'vectorizer':vec,'estimator':estimator,'metadata':metadata}
     temporary_model=base/'model.joblib.partial'
@@ -127,7 +127,7 @@ def predict(model,records,latest,learned=False):
     with threadpool_limits(limits=1):
         correction=model['estimator'].predict(model['vectorizer'].transform(records))
     alpha=meta['learned_alpha'] if learned else meta['selected_alpha']
-    return np.clip(np.clip(latest,-12,0)+alpha*correction,-12,0)
+    return np.minimum(np.asarray(latest,dtype=float)+alpha*correction,0)
 
 def evaluate(root,bootstrap_repeats=1000):
     base,_=paths(root); model=joblib.load(base/'model.joblib'); metadata=json.loads((base/'model_metadata.json').read_text())
@@ -157,6 +157,9 @@ def evaluate(root,bootstrap_repeats=1000):
     for _ in range(100):
         t=time.perf_counter(); predict(model,one,one_latest,learned=True); lat.append((time.perf_counter()-t)*1000)
     evidence={'status':'ready','source':'ESA historical dataset; final released labels','model':metadata,'dataset':{**metadata['data'],'test_events':len(ids),'high_risk_test_events':int(actual.sum()),'labels_column':'true_risk','label_use':'Final evaluation only; frozen model SHA256 recorded before label access.'},'metrics':scores,'validation':{'published_clipped_latest_loss_rounded':published,'reproduced_clipped_latest_loss':reference['challenge_loss'],'published_baseline_reproduced':reproduced,'absolute_reproduction_tolerance':.005,'namespaced_event_overlap':0,'raw_numeric_event_id_overlap':metadata['data'].get('raw_numeric_id_overlap'),'event_id_scope':'Source files independently number events; train:<id>/test:<id> namespaces preserve official split. Exact duplicate CDMs checked separately.','all_forecast_inputs_at_least_2_days':True,'frozen_model_sha256_before_labels':model_hash,'model_sha256_after_evaluation':digest(base/'model.joblib'),'paired_bootstrap':{'repeats':bootstrap_repeats,'valid_repeats':len(deltas),'quantity':'learned scored loss minus clipped latest loss; negative favours learned','ci95':np.quantile(deltas,[.025,.975]).tolist() if deltas else None}},'ranking_comparison':{'quantity':'Average precision on raw un-clipped predictions; benchmark clipping must not be used for ranking comparisons.','latest_average_precision':float(average_precision_score(actual,latest)),'learned_average_precision':float(average_precision_score(actual,learned_forecasts)),'paired_bootstrap_ap_difference_ci95':np.quantile(ap_deltas,[.025,.975]).tolist() if ap_deltas else None,'interpretation':'Positive AP difference favours learned ranking; a confidence interval crossing zero does not establish a reliable improvement.'},'precision_recall_curve':curve,'runtime':{'platform':platform.platform(),'architecture':platform.machine(),'inference_warmup':20,'inference_measured_requests':100,'learned_core_predict_p50_ms':float(np.percentile(lat,50)),'learned_core_predict_p95_ms':float(np.percentile(lat,95)),'note':'Core model prediction only; API end-to-end latency measured separately.'},'limitations':['Forecasts a later ESA risk estimate, not an observed collision.','Historical anonymised ESA encounters are distinct from synthetic manoeuvre scenarios.','Final labels are public retrospective labels; no operational live validation.','Risk values are log10 probabilities; score clipping is benchmark-only.','High-risk events are scarce in the eligible training split.','ESA hand-picked the challenge splits to over-represent high-risk encounters; metrics do not estimate real-world encounter prevalence.']}
+    if evidence['validation']['model_sha256_after_evaluation']!=model_hash:
+        raise ValueError('Frozen model changed during evaluation; no evidence published')
+    evidence['prediction_source_sha256']=digest(Path(__file__))
     write_json(base/'evidence.json',evidence)
     if not reproduced: print('WARNING: published baseline not reproduced within declared tolerance; investigate before comparison claims.',flush=True)
     return evidence

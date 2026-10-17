@@ -1,0 +1,415 @@
+{
+  "status": "experimental",
+  "evaluation_role": "retrospective_recheck",
+  "generated_at": "2026-10-17T11:17:31.254224+00:00",
+  "policy": {
+    "status": "experimental",
+    "method": "baseline_preserving_residual_guard",
+    "threshold": -6.576360564646992,
+    "metrics": {
+      "tp": 51,
+      "fp": 270,
+      "fn": 15,
+      "tn": 7957,
+      "recall": 0.7727272727272727,
+      "precision": 0.1588785046728972,
+      "f2": 0.4358974358974359
+    },
+    "false_positive_budget": 326,
+    "false_positive_ratio": 1.25,
+    "escalated_log10_pc": -5.343926690706698,
+    "frozen_at": "2026-10-17T11:16:27.971093+00:00",
+    "final_test_labels_accessed": false,
+    "baseline_model_sha256": "9da3561c69b4efe2ac088e74e6102106cbcdd78dfad57c50d463b68f0a836fb9",
+    "training_data_sha256": "ba47ce80580d5d6ff523ddc1d724901dbdfb3a5afdc5e755f0ca2bcefe6e4eb6",
+    "prediction_source_sha256": "6d07eabfb36a89204b4f304b30d4b613f7be4ee0fc038236b9e3f844905d32c9",
+    "guard_source_sha256": "429c5fa14ea3a1f86a540f56b9b06944f4dc005d6c253e561c2bf5f95d9fd14c",
+    "selection_rule": "Maximum training-event OOF F2, preserving every baseline alert, with at most 25% more training-validation false positives; ties prefer fewer false positives.",
+    "forecast_rule": "Preserve latest risk except learned escalations. Escalated value is the mean later log risk of baseline-missed high-risk training events, shrunk toward the overall high-risk training mean with 10 pseudo-observations.",
+    "fixed_prior_model": {
+      "hyperparameters": {
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 30,
+        "l2_regularization": 10,
+        "high_risk_weight": 10
+      },
+      "learned_alpha": 0.25
+    },
+    "simple_policy": {
+      "threshold": -6.039576792922172,
+      "metrics": {
+        "tp": 50,
+        "fp": 268,
+        "fn": 16,
+        "tn": 7959,
+        "recall": 0.7575757575757576,
+        "precision": 0.15723270440251572,
+        "f2": 0.42955326460481097
+      },
+      "false_positive_budget": 326,
+      "false_positive_ratio": 1.25,
+      "escalated_log10_pc": -5.343926690706698
+    },
+    "nested_validation": {
+      "baseline": {
+        "name": "model",
+        "challenge_loss": 0.8037528478120637,
+        "f2": 0.41083916083916083,
+        "precision": 0.1525974025974026,
+        "recall": 0.7121212121212122,
+        "average_precision": 0.15583677896245632,
+        "high_risk_log_rmse": 0.574641754066996,
+        "top_10_percent_recall": 0.7121212121212122,
+        "tp": 47,
+        "fp": 261,
+        "fn": 19,
+        "tn": 7966,
+        "event_count": 8293,
+        "high_risk_event_count": 66,
+        "undefined_loss_reason": null,
+        "log10_mae": 5.166918582794193,
+        "log10_rmse": 9.571631553074067,
+        "classification_accuracy": 0.9662365850717473,
+        "always_low_risk_accuracy": 0.9920414807669119,
+        "confusion_matrix": {
+          "true_positive": 47,
+          "false_positive": 261,
+          "false_negative": 19,
+          "true_negative": 7966
+        },
+        "method": "Wilson score, 95%, event-level binomial intervals",
+        "recall_ci95": [
+          0.5936275059135345,
+          0.8072805002019328
+        ],
+        "precision_ci95": [
+          0.11673650054312777,
+          0.19701735114389896
+        ]
+      },
+      "guard": {
+        "name": "model",
+        "challenge_loss": 0.826600671362518,
+        "f2": 0.41025641025641024,
+        "precision": 0.14953271028037382,
+        "recall": 0.7272727272727273,
+        "average_precision": 0.15719368396586306,
+        "high_risk_log_rmse": 0.5823385820540533,
+        "top_10_percent_recall": 0.7272727272727273,
+        "tp": 48,
+        "fp": 273,
+        "fn": 18,
+        "tn": 7954,
+        "event_count": 8293,
+        "high_risk_event_count": 66,
+        "undefined_loss_reason": null,
+        "log10_mae": 5.168352575513788,
+        "log10_rmse": 9.5732033495881,
+        "classification_accuracy": 0.9649101651995659,
+        "always_low_risk_accuracy": 0.9920414807669119,
+        "confusion_matrix": {
+          "true_positive": 48,
+          "false_positive": 273,
+          "false_negative": 18,
+          "true_negative": 7954
+        },
+        "method": "Wilson score, 95%, event-level binomial intervals",
+        "recall_ci95": [
+          0.6095777422224589,
+          0.8199665500441133
+        ],
+        "precision_ci95": [
+          0.11467624349207609,
+          0.19267817851784527
+        ]
+      },
+      "simple_threshold": {
+        "name": "model",
+        "challenge_loss": 0.8074489717765119,
+        "f2": 0.42168674698795183,
+        "precision": 0.15457413249211358,
+        "recall": 0.7424242424242424,
+        "average_precision": 0.16160404522804128,
+        "high_risk_log_rmse": 0.5835156641146867,
+        "top_10_percent_recall": 0.7424242424242424,
+        "tp": 49,
+        "fp": 268,
+        "fn": 17,
+        "tn": 7959,
+        "event_count": 8293,
+        "high_risk_event_count": 66,
+        "undefined_loss_reason": null,
+        "log10_mae": 5.167619871815417,
+        "log10_rmse": 9.572733100010634,
+        "classification_accuracy": 0.9656336669480284,
+        "always_low_risk_accuracy": 0.9920414807669119,
+        "confusion_matrix": {
+          "true_positive": 49,
+          "false_positive": 268,
+          "false_negative": 17,
+          "true_negative": 7959
+        },
+        "method": "Wilson score, 95%, event-level binomial intervals",
+        "recall_ci95": [
+          0.6256690145359197,
+          0.8325115638817572
+        ],
+        "precision_ci95": [
+          0.11893862137630665,
+          0.1984812631829684
+        ]
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "training_events": 5528,
+          "validation_events": 2765,
+          "policy": {
+            "threshold": -6.638309638976031,
+            "metrics": {
+              "tp": 33,
+              "fp": 181,
+              "fn": 11,
+              "tn": 5303,
+              "recall": 0.75,
+              "precision": 0.1542056074766355,
+              "f2": 0.4230769230769231
+            },
+            "false_positive_budget": 221,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.224700830600202
+          },
+          "simple_policy": {
+            "threshold": -6.024798037742148,
+            "metrics": {
+              "tp": 34,
+              "fp": 182,
+              "fn": 10,
+              "tn": 5302,
+              "recall": 0.7727272727272727,
+              "precision": 0.1574074074074074,
+              "f2": 0.4336734693877551
+            },
+            "false_positive_budget": 221,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.224700830600202
+          }
+        },
+        {
+          "fold": 1,
+          "training_events": 5529,
+          "validation_events": 2764,
+          "policy": {
+            "threshold": -6.28081909292887,
+            "metrics": {
+              "tp": 35,
+              "fp": 160,
+              "fn": 9,
+              "tn": 5325,
+              "recall": 0.7954545454545454,
+              "precision": 0.1794871794871795,
+              "f2": 0.4716981132075472
+            },
+            "false_positive_budget": 200,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.327612537862026
+          },
+          "simple_policy": {
+            "threshold": -6.039576792922172,
+            "metrics": {
+              "tp": 35,
+              "fp": 164,
+              "fn": 9,
+              "tn": 5321,
+              "recall": 0.7954545454545454,
+              "precision": 0.17587939698492464,
+              "f2": 0.4666666666666667
+            },
+            "false_positive_budget": 200,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.327612537862026
+          }
+        },
+        {
+          "fold": 2,
+          "training_events": 5529,
+          "validation_events": 2764,
+          "policy": {
+            "threshold": -6.608213408069239,
+            "metrics": {
+              "tp": 31,
+              "fp": 194,
+              "fn": 13,
+              "tn": 5291,
+              "recall": 0.7045454545454546,
+              "precision": 0.13777777777777778,
+              "f2": 0.3865336658354115
+            },
+            "false_positive_budget": 231,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.366537633755408
+          },
+          "simple_policy": {
+            "threshold": -6.039576792922172,
+            "metrics": {
+              "tp": 31,
+              "fp": 189,
+              "fn": 13,
+              "tn": 5296,
+              "recall": 0.7045454545454546,
+              "precision": 0.1409090909090909,
+              "f2": 0.39141414141414144
+            },
+            "false_positive_budget": 231,
+            "false_positive_ratio": 1.25,
+            "escalated_log10_pc": -5.366537633755408
+          }
+        }
+      ],
+      "limitation": "Outer event folds isolate new threshold/calibration selection. Base hyperparameters were selected by an earlier development cycle, so this is development evidence, not a new blind evaluation."
+    },
+    "default_changed": false
+  },
+  "methods": {
+    "latest_baseline": {
+      "name": "model",
+      "challenge_loss": 0.6939612611815035,
+      "f2": 0.7390745501285347,
+      "precision": 0.6460674157303371,
+      "recall": 0.7666666666666667,
+      "average_precision": 0.5881619678263414,
+      "high_risk_log_rmse": 0.7161627656576055,
+      "top_10_percent_recall": 0.78,
+      "tp": 115,
+      "fp": 63,
+      "fn": 35,
+      "tn": 1954,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.2086762272646325,
+      "log10_rmse": 9.637672334670974,
+      "classification_accuracy": 0.9547761882787263,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 115,
+        "false_positive": 63,
+        "false_negative": 35,
+        "true_negative": 1954
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.6928421847843321,
+        0.827173684886027
+      ],
+      "precision_ci95": [
+        0.5734106653703589,
+        0.7125527245916349
+      ]
+    },
+    "residual_guard": {
+      "name": "model",
+      "challenge_loss": 0.6827603995481172,
+      "f2": 0.7490396927016645,
+      "precision": 0.6464088397790055,
+      "recall": 0.78,
+      "average_precision": 0.5958267254386246,
+      "high_risk_log_rmse": 0.7151326029949882,
+      "top_10_percent_recall": 0.7933333333333333,
+      "tp": 117,
+      "fp": 64,
+      "fn": 33,
+      "tn": 1953,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.208770711858442,
+      "log10_rmse": 9.638637111546238,
+      "classification_accuracy": 0.95523765574527,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 117,
+        "false_positive": 64,
+        "false_negative": 33,
+        "true_negative": 1953
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.7071769001714163,
+        0.8388397629824609
+      ],
+      "precision_ci95": [
+        0.5743777866562509,
+        0.7123544234125561
+      ]
+    },
+    "simple_threshold": {
+      "name": "model",
+      "challenge_loss": 0.6821616902248892,
+      "f2": 0.7525510204081632,
+      "precision": 0.6413043478260869,
+      "recall": 0.7866666666666666,
+      "average_precision": 0.5975073365060641,
+      "high_risk_log_rmse": 0.7164924815112143,
+      "top_10_percent_recall": 0.8,
+      "tp": 118,
+      "fp": 66,
+      "fn": 32,
+      "tn": 1951,
+      "event_count": 2167,
+      "high_risk_event_count": 150,
+      "undefined_loss_reason": null,
+      "log10_mae": 5.209697387826413,
+      "log10_rmse": 9.640046398669133,
+      "classification_accuracy": 0.9547761882787263,
+      "always_low_risk_accuracy": 0.9307798800184587,
+      "confusion_matrix": {
+        "true_positive": 118,
+        "false_positive": 66,
+        "false_negative": 32,
+        "true_negative": 1951
+      },
+      "method": "Wilson score, 95%, event-level binomial intervals",
+      "recall_ci95": [
+        0.7143794210903474,
+        0.8446376388052887
+      ],
+      "precision_ci95": [
+        0.5697658482280896,
+        0.7070633476611794
+      ]
+    }
+  },
+  "paired_bootstrap": {
+    "repeats": 1000,
+    "loss_difference_ci95": [
+      -0.03743296261424893,
+      0.0018528349462705704
+    ],
+    "recall_difference_ci95": [
+      0.0,
+      0.0367658336340671
+    ],
+    "f2_difference_ci95": [
+      -0.0019722688046850097,
+      0.029421373673504066
+    ]
+  },
+  "additional_alert_event_ids": [
+    "1051",
+    "1362",
+    "1934"
+  ],
+  "additional_high_risk_events_detected": 2,
+  "fingerprints": {
+    "policy_before_labels": "555248c9b29e3f8abbf5e501790e49a653797616b5a9f3add605fe5989d522eb",
+    "policy_after": "555248c9b29e3f8abbf5e501790e49a653797616b5a9f3add605fe5989d522eb",
+    "base_model": "9da3561c69b4efe2ac088e74e6102106cbcdd78dfad57c50d463b68f0a836fb9"
+  },
+  "limitations": [
+    "This public test set was already evaluated by prior project versions; it is not a blind test.",
+    "The forecast target is later reported risk, not an observed collision.",
+    "The training false-positive budget is not a guarantee on future data.",
+    "New alerts must be reviewed by an operator; this does not command a spacecraft."
+  ]
+}

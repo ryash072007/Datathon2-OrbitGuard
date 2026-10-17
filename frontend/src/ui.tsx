@@ -9,8 +9,8 @@ export const G = {
   cdm: 'Conjunction data message (CDM): an alert issued when two objects are predicted to pass close to each other. Each new message refines the estimate.',
   tca: 'Time of closest approach (TCA): the moment the two objects are predicted to be nearest each other.',
   threshold: 'ESA counts an encounter as high-risk when its final Pc is at least 10⁻⁶ (one in a million).',
-  latest: 'The most recent Pc available 48 hours before closest approach. This is ESA\'s standard baseline, and our default forecast because it scored best in cross-validation.',
-  learned: 'A gradient-boosted model trained on 8,293 past encounters that adjusts the latest value using the message history. It is less accurate as a point estimate but better at ranking which encounters to review first (see Validation).',
+  latest: 'The most recent Pc available 48 hours before closest approach. This is ESA\'s standard baseline. Validation shows how it compares with the learned model.',
+  learned: 'A model trained on historical ESA encounters that adjusts the latest value using the message history. Compare its point forecasts and review ranking separately in Validation.',
   final: 'The Pc that ESA reported in the last day before closest approach. The models never see it; it is shown only so you can compare.',
   dv: 'Velocity change of the burn in metres per second. It stands in for fuel: a smaller Δv uses less propellant. Positive means a prograde burn (speeding up along the direction of travel), negative means retrograde.',
   limit: 'A plan is acceptable only if every encounter with every object stays below Pc 10⁻⁴ (one in ten thousand), at all three uncertainty levels tested.',
@@ -18,7 +18,7 @@ export const G = {
   verify: 'After choosing, the plan is re-propagated with a finer time step and tighter tolerances to confirm the result does not depend on numerical settings.',
   geometry: 'Positions near the moment of closest approach, measured relative to where satellite A would be without a burn. Horizontal is along-track (direction of travel), vertical is cross-track. Object sizes are not to scale.',
   loss: 'ESA\'s challenge score: the forecast error on high-risk encounters divided by F2. Lower is better.',
-  f2: 'Combines precision and recall but weights recall twice as heavily, because missing a dangerous encounter is worse than a false alarm. Higher is better.',
+  f2: 'F2 = 5 × precision × recall / (4 × precision + recall). The recall weight is four times the precision weight. Higher is better.',
   recall: 'Share of the truly high-risk encounters that the method flagged.',
   precision: 'Share of the flagged encounters that were truly high-risk.',
   fn: 'High-risk encounters the method failed to flag.',
@@ -57,23 +57,22 @@ export function Tip({text, children}: {text: ReactNode, children?: ReactNode}) {
 }
 /** An inline term with a dotted underline that explains itself on hover or focus. */
 export function Term({k, children}: {k: keyof typeof G, children: ReactNode}) {return <Tip text={G[k]}><span className="term">{children}</span></Tip>;}
-export function Loading({label}: {label: string}) {return <div className="placeholder"><Loader2 className="spin" size={18}/><span>{label}</span></div>;}
+export function Loading({label}: {label: string}) {return <div className="placeholder" role="status"><Loader2 className="spin" size={18}/><span>{label}</span></div>;}
 export function Empty({title, children}: {title: string, children?: ReactNode}) {return <div className="placeholder empty"><strong>{title}</strong>{children && <p>{children}</p>}</div>;}
 export function Notice({children, retry}: {children: ReactNode, retry?: () => void}) {return <div className="notice" role="alert"><span>{children}</span>{retry && <button className="btn small" onClick={retry}><RefreshCw size={13}/> Retry</button>}</div>;}
 export function Status({ok, children}: {ok: boolean, children?: ReactNode}) {return <span className={`status ${ok ? 'ok' : 'bad'}`}>{ok ? <Check size={14} aria-hidden="true"/> : <X size={14} aria-hidden="true"/>}{children ?? (ok ? 'Accepted' : 'Rejected')}</span>;}
 export function useAsync<T>(path: string | null, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(Boolean(path));
-  const [error, setError] = useState('');
+  const [state, setState] = useState<{path: string | null, data: T | null, loading: boolean, error: string}>({path, data: null, loading: Boolean(path), error: ''});
   const [reload, setReload] = useState(0);
   useEffect(() => {
-    if (!path) return;
+    if (!path) {setState({path, data: null, loading: false, error: ''}); return;}
     let alive = true;
-    setLoading(true); setError('');
-    request<T>(path).then(v => {if (alive) setData(v);}).catch(e => {if (alive) setError(e.message);}).finally(() => {if (alive) setLoading(false);});
+    setState({path, data: null, loading: true, error: ''});
+    request<T>(path).then(data => {if (alive) setState({path, data, loading: false, error: ''});}).catch(error => {if (alive) setState({path, data: null, loading: false, error: error.message});});
     return () => {alive = false;};
   }, [path, reload, ...deps]);
-  return {data, loading, error, retry: () => setReload(v => v + 1)};
+  const current = state.path === path;
+  return {data: current ? state.data : null, loading: Boolean(path) && (!current || state.loading), error: current ? state.error : '', retry: () => setReload(v => v + 1)};
 }
 /** Chart colours come from CSS tokens so light and dark themes stay in one place. */
 export function useTokens() {
@@ -91,4 +90,3 @@ export function useTokens() {
   }, []);
   return tokens;
 }
-

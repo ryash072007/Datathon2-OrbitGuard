@@ -1,0 +1,349 @@
+{
+  "validation": {
+    "status": "complete",
+    "passed": true,
+    "reference_commit": "ce0f00722c56808755ee0adbe47a4e3d56439484",
+    "attribution": "Reference numerical inputs and expected values: NASA CARA Analysis Tools; Alfano 2009. Independent Python algorithm. SI units; Omitron km/km^2 inputs converted to m/m^2.",
+    "case_count": 3,
+    "cases": [
+      {
+        "name": "Omitron circular",
+        "expected": 2.70601573490125e-05,
+        "actual": 2.7060235273557647e-05,
+        "relative_error": 2.8796781976758723e-06,
+        "relative_tolerance": 0.001,
+        "passed": true,
+        "source": "https://github.com/nasa/CARA_Analysis_Tools/blob/ce0f00722c56808755ee0adbe47a4e3d56439484/DistributedMatlab/ProbabilityOfCollision/UnitTests/Pc2D_Foster_UnitTest.m"
+      },
+      {
+        "name": "Alfano 01 circular",
+        "expected": 0.146749549,
+        "actual": 0.1467495005059488,
+        "relative_error": 3.3045451619528876e-07,
+        "relative_tolerance": 0.001,
+        "passed": true,
+        "source": "https://github.com/nasa/CARA_Analysis_Tools/blob/ce0f00722c56808755ee0adbe47a4e3d56439484/DataFiles/AlfanoInputData/Alfano_2009_Test_Cases/Case1%20data%20at%20TCA.xls"
+      },
+      {
+        "name": "Alfano 02 circular",
+        "expected": 0.006222267,
+        "actual": 0.0062222670554952,
+        "relative_error": 8.918807248292637e-09,
+        "relative_tolerance": 0.001,
+        "passed": true,
+        "source": "https://github.com/nasa/CARA_Analysis_Tools/blob/ce0f00722c56808755ee0adbe47a4e3d56439484/DataFiles/AlfanoInputData/Alfano_2009_Test_Cases/Case2%20data%20at%20TCA.xls"
+      }
+    ],
+    "numerical_checks": [
+      {
+        "name": "Centred isotropic analytic integral",
+        "expected": 0.03999455871452227,
+        "actual": 0.039994558714522295,
+        "passed": true
+      },
+      {
+        "name": "Common rotation invariance",
+        "expected": 2.7060235273557647e-05,
+        "actual": 2.7060235273559812e-05,
+        "passed": true
+      },
+      {
+        "name": "Object exchange invariance",
+        "expected": 2.7060235273557647e-05,
+        "actual": 2.7060235273557647e-05,
+        "passed": true
+      },
+      {
+        "name": "Hard-body radius monotonicity",
+        "expected": ">= 2.7060235273557647e-05",
+        "actual": 6.0880917457825985e-05,
+        "passed": true
+      },
+      {
+        "name": "Invalid covariance is rejected",
+        "actual": true,
+        "expected": true,
+        "passed": true
+      },
+      {
+        "name": "max relative energy error",
+        "actual": 6.511537975484316e-10,
+        "expected": "< 1e-8",
+        "passed": true
+      },
+      {
+        "name": "max relative angular momentum error",
+        "actual": 3.255768987742158e-10,
+        "expected": "< 1e-8",
+        "passed": true
+      }
+    ],
+    "limitation": "Verifies selected probability calculations and propagation invariants; not operational validation of the complete planner.",
+    "generated_at_utc": "2026-10-17T10:55:43.876643+00:00",
+    "architecture": "s390x",
+    "platform": "Linux-6.8.0-147-generic-s390x-with-glibc2.39",
+    "python_version": "3.12.3",
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.11.4"
+  },
+  "benchmark": {
+    "status": "complete",
+    "scenario_count": 50,
+    "failed_scenarios": 0,
+    "suite_sha256": "e00ed4e37bb3be426dcae08e9abee7b2014d3069256bfe89185c33448e9d5d95",
+    "suite_version": "1",
+    "source": "synthetic",
+    "suite_distribution": {
+      "clear": 10,
+      "primary": 10,
+      "secondary": 20,
+      "blocked": 10
+    },
+    "construction_disclosure": "Secondary cases deliberately place C on a primary-only-selected path. This is a stress-test distribution, not real-world event prevalence.",
+    "policies": {
+      "no_action": {
+        "acceptable_plan_count": 10,
+        "acceptable_plan_rate": 0.2,
+        "abstentions": 0,
+        "correct_abstentions": 0,
+        "secondary_hazards_introduced": 0,
+        "unsafe_selected_count": 40,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0.0,
+        "mean_worst_pc": 0.016407180637225988,
+        "max_worst_pc": 0.0283207818965834
+      },
+      "pair_only": {
+        "acceptable_plan_count": 20,
+        "acceptable_plan_rate": 0.4,
+        "abstentions": 10,
+        "correct_abstentions": 10,
+        "secondary_hazards_introduced": 20,
+        "unsafe_selected_count": 20,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0.0375,
+        "mean_worst_pc": 0.010818567244685166,
+        "max_worst_pc": 0.02873993045482416
+      },
+      "orbitguard": {
+        "acceptable_plan_count": 40,
+        "acceptable_plan_rate": 0.8,
+        "abstentions": 10,
+        "correct_abstentions": 10,
+        "secondary_hazards_introduced": 0,
+        "unsafe_selected_count": 0,
+        "numerical_verification_failures": 0,
+        "mean_delta_v_mps": 0.0375,
+        "mean_worst_pc": 2.533984886067139e-05,
+        "max_worst_pc": 5.4871294644743605e-05
+      }
+    },
+    "introduced_secondary_hazard_definition": "A selected policy exceeds the threshold for another object while no action does not; both use the maximum across all three uncertainty settings.",
+    "by_kind": {
+      "clear": {
+        "no_action": {
+          "acceptable_plan_count": 10,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.0,
+          "max_worst_pc": 0.0
+        },
+        "pair_only": {
+          "acceptable_plan_count": 10,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.0,
+          "max_worst_pc": 0.0
+        },
+        "orbitguard": {
+          "acceptable_plan_count": 10,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.0,
+          "max_worst_pc": 0.0
+        }
+      },
+      "primary": {
+        "no_action": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 10,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.02404008353724742,
+          "max_worst_pc": 0.02822103555947501
+        },
+        "pair_only": {
+          "acceptable_plan_count": 10,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.05,
+          "mean_worst_pc": 1.6363413878210162e-05,
+          "max_worst_pc": 2.2547875951452807e-05
+        },
+        "orbitguard": {
+          "acceptable_plan_count": 10,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.05,
+          "mean_worst_pc": 1.6363413878210162e-05,
+          "max_worst_pc": 2.2547875951452807e-05
+        }
+      },
+      "secondary": {
+        "no_action": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 20,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.019440624018933265,
+          "max_worst_pc": 0.0283207818965834
+        },
+        "pair_only": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 20,
+          "unsafe_selected_count": 20,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.05000000000000001,
+          "mean_worst_pc": 0.021628952782431227,
+          "max_worst_pc": 0.02873993045482416
+        },
+        "orbitguard": {
+          "acceptable_plan_count": 20,
+          "acceptable_plan_rate": 1.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.05000000000000001,
+          "mean_worst_pc": 4.249799078223769e-05,
+          "max_worst_pc": 5.4871294644743605e-05
+        }
+      },
+      "blocked": {
+        "no_action": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 0,
+          "correct_abstentions": 0,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 10,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": 0.0,
+          "mean_worst_pc": 0.01911457161101599,
+          "max_worst_pc": 0.028174411904138934
+        },
+        "pair_only": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 10,
+          "correct_abstentions": 10,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": null,
+          "mean_worst_pc": null,
+          "max_worst_pc": null
+        },
+        "orbitguard": {
+          "acceptable_plan_count": 0,
+          "acceptable_plan_rate": 0.0,
+          "abstentions": 10,
+          "correct_abstentions": 10,
+          "secondary_hazards_introduced": 0,
+          "unsafe_selected_count": 0,
+          "numerical_verification_failures": 0,
+          "mean_delta_v_mps": null,
+          "mean_worst_pc": null,
+          "max_worst_pc": null
+        }
+      }
+    },
+    "risk_threshold": 0.0001,
+    "uncertainty_scales": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "candidate_grid": {
+      "burn_times_seconds": [
+        300.0,
+        900.0,
+        1500.0
+      ],
+      "delta_v_mps": [
+        -1.0,
+        -0.5,
+        -0.25,
+        -0.1,
+        -0.05,
+        -0.01,
+        0.01,
+        0.05,
+        0.1,
+        0.25,
+        0.5,
+        1.0
+      ],
+      "includes_no_action": true
+    },
+    "elapsed_seconds": 97.50121903900072,
+    "latency_ms": {
+      "p50": 1663.4569550005835,
+      "p95": 1731.4183448496806
+    },
+    "assumptions": [
+      "Synthetic neighbourhood: one controlled satellite and seven surrounding objects; not ESA-reconstructed or live orbits.",
+      "Earth-centred inertial coordinates, SI units, two-body gravity, instantaneous tangential burns, three-hour horizon.",
+      "Collision probability uses a circular hard body and Gaussian independent position errors in a short, rectilinear encounter approximation.",
+      "Local RTN position standard deviations are prescribed at each encounter, not propagated orbit-determination covariances.",
+      "Controlled satellite RTN uncertainty: 20/100/20 m; surrounding objects: 30/150/30 m; each object radius: 5 m.",
+      "Screening repeats calculations at 0.5, 1 and 2 times the prescribed standard deviations; this finite sensitivity test is not a guarantee.",
+      "Acceptance threshold is 1e-4 per encounter and differs from ESA's 1e-6 forecast classification threshold.",
+      "Only the controlled satellite may manoeuvre; delta-v is a fuel-use proxy, not kilograms of propellant.",
+      "No J2, drag, debris fragmentation, cooperative manoeuvres, velocity uncertainty, or operational safety certification.",
+      "Probability is evaluated at interior closest approaches; partial encounters at horizon boundaries and slow co-orbital cases are outside this scenario suite."
+    ],
+    "generated_at_utc": "2026-10-17T10:57:21.539610+00:00",
+    "architecture": "s390x",
+    "platform": "Linux-6.8.0-147-generic-s390x-with-glibc2.39",
+    "python_version": "3.12.3",
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.11.4"
+  },
+  "regression_output": "............................................                             [100%]\n44 passed in 7.22s\n"
+}

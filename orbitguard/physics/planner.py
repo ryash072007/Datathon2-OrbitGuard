@@ -215,10 +215,6 @@ def screen_scenario(scenario, overrides=None, *, include_trajectories=True, veri
     selected = _choose(candidates, "accepted")
     choices = {"no_action": candidates[0], "pair_only": pair, "orbitguard": selected}
     policies = {name: _policy(candidate, name, threshold) for name, candidate in choices.items()}
-    no_action_secondary = candidates[0]["worst_secondary_pc"]
-    for policy in policies.values():
-        policy["introduced_secondary_hazard"] = bool(policy["introduced_secondary_hazard"] and
-                                                     no_action_secondary is not None and no_action_secondary <= threshold)
     selected_paths = {name: candidate_paths[choice["candidate_id"]] if choice else None
                       for name, choice in choices.items() if name != "no_action"}
     if verify:
@@ -227,19 +223,23 @@ def screen_scenario(scenario, overrides=None, *, include_trajectories=True, veri
             if choice is None:
                 policies[name]["verification"] = {"status": "abstained", "accepted": False}
                 continue
-            checked, _ = _candidate(scenario, tight_paths, choice["burn_time_seconds"], choice["delta_v_mps"], threshold, tight=True)
+            checked, checked_path = _candidate(scenario, tight_paths, choice["burn_time_seconds"], choice["delta_v_mps"], threshold, tight=True)
             checked_valid = checked["valid"]
-            policies[name]["verification"] = {"status": "passed" if checked_valid else "failed",
+            policies[name] = _policy(checked, name, threshold)
+            policies[name]["verification"] = {"status": "failed" if not checked_valid else "passed" if checked["accepted"] else "rejected",
                                                 "accepted": checked["accepted"], "worst_pc": checked["worst_pc"],
                                                 "grid_seconds": 15, "rtol": 1e-11}
-            # Benchmark acceptance must never ignore the tighter check, even
-            # for a baseline policy whose coarse-grid result appeared valid.
-            if not checked["accepted"]:
-                policies[name]["accepted"] = False
             if name == "orbitguard" and not checked["accepted"]:
                 policies[name]["reason"] = "Recommendation withheld: the tighter numerical verification did not pass."
                 policies[name]["abstained"] = True
                 selected = None
+                selected_paths[name] = None
+            elif name != "no_action":
+                selected_paths[name] = checked_path
+    no_action_secondary = policies["no_action"]["worst_secondary_pc"]
+    for policy in policies.values():
+        policy["introduced_secondary_hazard"] = bool(policy["introduced_secondary_hazard"] and
+                                                     no_action_secondary is not None and no_action_secondary <= threshold)
     recommendation = None if selected is None else {**policies["orbitguard"], "status": "recommended"}
     output = {"scenario_id": scenario.scenario_id, "source": "synthetic", "kind": scenario.kind,
               "status": "recommended" if recommendation else "abstained", "candidates_evaluated": len(candidates),

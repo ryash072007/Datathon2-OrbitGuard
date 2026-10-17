@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("command", nargs="?", choices=[
         "fetch-data", "prepare-data", "train", "evaluate", "validate-physics",
-        "benchmark-planner", "benchmark-runtime", "serve", "environment",
+        "benchmark-planner", "benchmark-runtime", "audit-accuracy", "train-triage", "evaluate-triage", "train-guard", "evaluate-guard", "serve", "environment",
     ])
     args, remaining = parser.parse_known_args(argv)
     if not args.command:
@@ -25,6 +25,34 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {"fetch-data", "prepare-data", "train", "evaluate"}:
         from orbitguard.ml.cli import main as ml_main
         return ml_main([args.command, *remaining]) or 0
+    if args.command == "audit-accuracy":
+        import json
+        from orbitguard.ml.accuracy import audit_accuracy
+        audit_parser = argparse.ArgumentParser(prog="orbitguard audit-accuracy")
+        audit_parser.add_argument("--root", type=Path, default=Path(os.environ.get("ORBITGUARD_ROOT", ".")))
+        audit_parser.add_argument("--bootstrap-repeats", type=int, default=1000)
+        options = audit_parser.parse_args(remaining)
+        if options.bootstrap_repeats < 1:
+            audit_parser.error("--bootstrap-repeats must be positive")
+        result = audit_accuracy(options.root, options.bootstrap_repeats)
+        print(json.dumps({key: result[key] for key in ("status", "methods", "shrinkage_loss_difference")}, indent=2))
+        return 0
+    if args.command in {"train-triage", "evaluate-triage", "train-guard", "evaluate-guard"}:
+        import json
+        from orbitguard.ml.triage import train_triage, evaluate_triage
+        triage_parser = argparse.ArgumentParser(prog=f"orbitguard {args.command}")
+        triage_parser.add_argument("--root", type=Path, default=Path(os.environ.get("ORBITGUARD_ROOT", ".")))
+        triage_parser.add_argument("--bootstrap-repeats", type=int, default=1000)
+        options = triage_parser.parse_args(remaining)
+        if options.bootstrap_repeats < 1:
+            triage_parser.error("--bootstrap-repeats must be positive")
+        if args.command in {"train-guard", "evaluate-guard"}:
+            from orbitguard.ml.guard import train_guard, evaluate_guard
+            result = train_guard(options.root) if args.command == "train-guard" else evaluate_guard(options.root, options.bootstrap_repeats)
+        else:
+            result = train_triage(options.root) if args.command == "train-triage" else evaluate_triage(options.root, options.bootstrap_repeats)
+        print(json.dumps(result, indent=2))
+        return 0
     if args.command in {"validate-physics", "benchmark-planner"}:
         from orbitguard.physics.cli import main as physics_main
         return physics_main([args.command, *remaining]) or 0

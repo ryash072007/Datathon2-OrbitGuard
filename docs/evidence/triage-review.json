@@ -1,0 +1,298 @@
+{
+  "status": "experimental",
+  "source": "ESA public retrospective final labels",
+  "score_meaning": "Model score for probability that the final risk estimate is at least 1e-6; not collision probability Pc. Scores are not calibrated.",
+  "model": {
+    "name": "Experimental final-risk triage classifier",
+    "status": "experimental",
+    "score_meaning": "Model score for probability that the final risk estimate is at least 1e-6; not collision probability Pc. Scores are not calibrated.",
+    "threshold": 0.22597523957196858,
+    "threshold_rule": "Maximum F2 on training-event out-of-fold scores; ties choose lower threshold.",
+    "selection_rule": "Highest three-fold training-event OOF average precision; no final labels used.",
+    "hyperparameters": {
+      "max_leaf_nodes": 7,
+      "min_samples_leaf": 50,
+      "positive_weight": 10
+    },
+    "max_iter": 100,
+    "learning_rate": 0.05,
+    "l2_regularization": 10,
+    "cv": {
+      "selected": {
+        "config": {
+          "max_leaf_nodes": 7,
+          "min_samples_leaf": 50,
+          "positive_weight": 10
+        },
+        "metrics": {
+          "average_precision": 0.2870310816160152,
+          "top_10_percent_recall": 0.8333333333333334,
+          "precision": 0.2074468085106383,
+          "recall": 0.5909090909090909,
+          "f2": 0.4314159292035398,
+          "tp": 39,
+          "fp": 149,
+          "fn": 27,
+          "tn": 8078,
+          "threshold": 0.22597523957196858,
+          "event_count": 8293,
+          "high_risk_event_count": 66
+        }
+      },
+      "trials": [
+        {
+          "config": {
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 20,
+            "positive_weight": 1
+          },
+          "metrics": {
+            "average_precision": 0.26083574694974454,
+            "top_10_percent_recall": 0.8333333333333334,
+            "precision": 0.21951219512195122,
+            "recall": 0.5454545454545454,
+            "f2": 0.4205607476635514,
+            "tp": 36,
+            "fp": 128,
+            "fn": 30,
+            "tn": 8099,
+            "threshold": 0.06460160218908635,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 20,
+            "positive_weight": 10
+          },
+          "metrics": {
+            "average_precision": 0.27089958782187135,
+            "top_10_percent_recall": 0.8484848484848485,
+            "precision": 0.20725388601036268,
+            "recall": 0.6060606060606061,
+            "f2": 0.437636761487965,
+            "tp": 40,
+            "fp": 153,
+            "fn": 26,
+            "tn": 8074,
+            "threshold": 0.21436414560755326,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 50,
+            "positive_weight": 1
+          },
+          "metrics": {
+            "average_precision": 0.28529295395647164,
+            "top_10_percent_recall": 0.8181818181818182,
+            "precision": 0.18025751072961374,
+            "recall": 0.6363636363636364,
+            "f2": 0.4225352112676056,
+            "tp": 42,
+            "fp": 191,
+            "fn": 24,
+            "tn": 8036,
+            "threshold": 0.043141447182453926,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 50,
+            "positive_weight": 10
+          },
+          "metrics": {
+            "average_precision": 0.2870310816160152,
+            "top_10_percent_recall": 0.8333333333333334,
+            "precision": 0.2074468085106383,
+            "recall": 0.5909090909090909,
+            "f2": 0.4314159292035398,
+            "tp": 39,
+            "fp": 149,
+            "fn": 27,
+            "tn": 8078,
+            "threshold": 0.22597523957196858,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 15,
+            "min_samples_leaf": 20,
+            "positive_weight": 1
+          },
+          "metrics": {
+            "average_precision": 0.23511432861888942,
+            "top_10_percent_recall": 0.8333333333333334,
+            "precision": 0.2129032258064516,
+            "recall": 0.5,
+            "f2": 0.3937947494033413,
+            "tp": 33,
+            "fp": 122,
+            "fn": 33,
+            "tn": 8105,
+            "threshold": 0.05147679907424217,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 15,
+            "min_samples_leaf": 20,
+            "positive_weight": 10
+          },
+          "metrics": {
+            "average_precision": 0.28587259531767023,
+            "top_10_percent_recall": 0.8333333333333334,
+            "precision": 0.20786516853932585,
+            "recall": 0.5606060606060606,
+            "f2": 0.41855203619909503,
+            "tp": 37,
+            "fp": 141,
+            "fn": 29,
+            "tn": 8086,
+            "threshold": 0.12657281475494322,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 15,
+            "min_samples_leaf": 50,
+            "positive_weight": 1
+          },
+          "metrics": {
+            "average_precision": 0.2833405111081491,
+            "top_10_percent_recall": 0.8333333333333334,
+            "precision": 0.1686746987951807,
+            "recall": 0.6363636363636364,
+            "f2": 0.4093567251461988,
+            "tp": 42,
+            "fp": 207,
+            "fn": 24,
+            "tn": 8020,
+            "threshold": 0.03469621787357103,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        },
+        {
+          "config": {
+            "max_leaf_nodes": 15,
+            "min_samples_leaf": 50,
+            "positive_weight": 10
+          },
+          "metrics": {
+            "average_precision": 0.2772188607173236,
+            "top_10_percent_recall": 0.8181818181818182,
+            "precision": 0.18571428571428572,
+            "recall": 0.5909090909090909,
+            "f2": 0.41139240506329117,
+            "tp": 39,
+            "fp": 171,
+            "fn": 27,
+            "tn": 8056,
+            "threshold": 0.14439481180275912,
+            "event_count": 8293,
+            "high_risk_event_count": 66
+          }
+        }
+      ],
+      "external_training_only_search": null,
+      "baseline": {
+        "average_precision": 0.18034456301884694,
+        "top_10_percent_recall": 0.9090909090909091,
+        "precision": 0.1525974025974026,
+        "recall": 0.7121212121212122,
+        "f2": 0.41083916083916083,
+        "tp": 47,
+        "fp": 261,
+        "fn": 19,
+        "tn": 7966,
+        "threshold": -6.0,
+        "event_count": 8293,
+        "high_risk_event_count": 66
+      }
+    },
+    "seed": 42,
+    "cutoff_days": 2.0,
+    "feature_count": 144,
+    "training_event_count": 8293,
+    "high_risk_training_event_count": 66,
+    "training_event_sha256": "bddbf923e7782b8768a38ebb68ce99fff3e1a4f90674a5d3821342fab5b4f5b2",
+    "training_data_sha256": "ba47ce80580d5d6ff523ddc1d724901dbdfb3a5afdc5e755f0ca2bcefe6e4eb6",
+    "sklearn_version": "1.4.1.post1",
+    "numpy_version": "1.26.4",
+    "frozen_utc": "2026-10-17T10:53:24Z",
+    "fit_elapsed_seconds": 28.430824627999755,
+    "final_test_labels_accessed": false,
+    "limitations": [
+      "Only 66 high-risk training events in the full eligible dataset.",
+      "OOF metrics used for model and threshold selection are optimistic; final evaluation is retrospective.",
+      "Class weighting and score calibration affect probabilities; scores are not calibrated.",
+      "ESA selected encounters over-represent high-risk events; precision does not estimate operational prevalence."
+    ],
+    "version": "84cbe01dafb0",
+    "model_sha256": "84cbe01dafb00c32bf496aff1a2f6f777f8205724f0dc57f51c43be9d3090b78"
+  },
+  "metrics": {
+    "average_precision": 0.6731984431631723,
+    "top_10_percent_recall": 0.82,
+    "precision": 0.673202614379085,
+    "recall": 0.6866666666666666,
+    "f2": 0.6839309428950863,
+    "tp": 103,
+    "fp": 50,
+    "fn": 47,
+    "tn": 1967,
+    "threshold": 0.22597523957196858,
+    "event_count": 2167,
+    "high_risk_event_count": 150
+  },
+  "baseline": {
+    "average_precision": 0.6650765911180723,
+    "top_10_percent_recall": 0.8266666666666667,
+    "precision": 0.6460674157303371,
+    "recall": 0.7666666666666667,
+    "f2": 0.7390745501285347,
+    "tp": 115,
+    "fp": 63,
+    "fn": 35,
+    "tn": 1954,
+    "threshold": -6.0,
+    "event_count": 2167,
+    "high_risk_event_count": 150
+  },
+  "paired_bootstrap": {
+    "quantity": "Triage minus raw latest average precision",
+    "repeats": 1000,
+    "valid_repeats": 1000,
+    "ci95": [
+      -0.061325157180668805,
+      0.0866682683322415
+    ]
+  },
+  "validation": {
+    "frozen_model_sha256_before_labels": "84cbe01dafb00c32bf496aff1a2f6f777f8205724f0dc57f51c43be9d3090b78",
+    "model_sha256_after_evaluation": "84cbe01dafb00c32bf496aff1a2f6f777f8205724f0dc57f51c43be9d3090b78",
+    "event_sets_matched": true,
+    "threshold_selected_on_training_only": true
+  },
+  "limitations": [
+    "Only 66 high-risk training events in the full eligible dataset.",
+    "OOF metrics used for model and threshold selection are optimistic; final evaluation is retrospective.",
+    "Class weighting and score calibration affect probabilities; scores are not calibrated.",
+    "ESA selected encounters over-represent high-risk events; precision does not estimate operational prevalence."
+  ]
+}

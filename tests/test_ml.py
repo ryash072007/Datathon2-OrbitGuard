@@ -42,6 +42,19 @@ def test_score_uses_high_risk_mse_and_f2():
 def test_scoring_clip_never_changes_high_risk_predictions():
     np.testing.assert_allclose(clipped([-20.,-6.01,-6.,-2.]),[-6.001,-6.001,-6.,-2.])
 
+
+def test_zero_learned_residual_preserves_raw_low_probability_information():
+    from sklearn.dummy import DummyRegressor
+    from sklearn.feature_extraction import DictVectorizer
+    from orbitguard.ml.model import predict
+    records = [{'latest_risk': -12.}, {'latest_risk': -5.}]
+    vectorizer = DictVectorizer(sparse=False)
+    features = vectorizer.fit_transform(records)
+    estimator = DummyRegressor(strategy='constant', constant=0).fit(features, [0., 0.])
+    model = {'vectorizer': vectorizer, 'estimator': estimator,
+             'metadata': {'selected_method': 'latest_baseline', 'learned_alpha': 1.}}
+    np.testing.assert_allclose(predict(model, records, [-30., -5.], learned=True), [-30., -5.])
+
 def test_private_labels_require_frozen_artifact(tmp_path):
     with pytest.raises(ValueError,match='Freeze'): read_labels(tmp_path)
 
@@ -60,6 +73,20 @@ def test_target_at_exactly_one_day_is_excluded():
     frame.loc[(frame.event_id==7)&(frame.time_to_tca==.1),'time_to_tca']=1.
     ids,features,latest,y=_xy(frame)
     assert len(ids)==0
+
+
+def test_evidence_does_not_publish_metrics_for_a_different_frozen_model(tmp_path):
+    import json
+    base = tmp_path / 'artifacts/ml'
+    base.mkdir(parents=True)
+    (base / 'model.joblib').write_bytes(b'new frozen model')
+    (base / 'evidence.json').write_text(json.dumps({
+        'status': 'ready', 'metrics': [{'challenge_loss': .1}],
+        'validation': {'model_sha256_after_evaluation': 'old model hash'},
+    }))
+    result = MLService(tmp_path).evidence()
+    assert result['status'] == 'stale'
+    assert 'metrics' not in result
 
 
 def test_population_and_ranking_curves_from_artifacts(tmp_path):
