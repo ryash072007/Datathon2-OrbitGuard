@@ -19,7 +19,7 @@ def test_index_renders_all_panels(client):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     for marker in ("Event", "Risk and decision", "Burn options", "Consequence if they collide",
-                   "Probability vs harm", "Super-spreaders", "Operator brief", "WAIT"):
+                   "Probability vs harm", "Super-spreaders", "operator brief", "WAIT"):
         assert marker in html
     assert "grounded" in html and "<svg" in html
     assert "historical CDM example" in html
@@ -77,8 +77,9 @@ def test_globe_and_replay_endpoints(client, data_fixture, facts):
     assert client.get("/api/replay/demo").get_json()[0]["event_id"] == 7
     assert client.get("/api/globe/1").status_code == 404
     html = client.get("/").get_data(as_text=True)
-    assert "What if it collides? (3D)" in html and "Real-time decision replay" in html
-    assert "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" in html
+    assert "What if it collides?" in html and "Real-time decision replay" in html
+    js = client.get("/static/app.js").get_data(as_text=True)
+    assert "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" in js
 
 
 def test_markdown_html_escapes_and_renders():

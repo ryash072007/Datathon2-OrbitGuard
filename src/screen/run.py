@@ -5,7 +5,9 @@ import argparse
 import json
 import math
 import os
+import platform
 import socket
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -119,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"benchmark workers={w:3d} wall={wall:7.2f}s speedup={base_t / wall:5.2f}x")
         host = socket.gethostname()
         (out_dir / f"speedup_{host}.json").write_text(
-            json.dumps({"host": host, "cpu_count": os.cpu_count(), "n_burns": len(burns),
+            json.dumps({"host": host, "machine": platform.machine(), "system": platform.system(),
+                        "byteorder": sys.byteorder, "cpu_count": os.cpu_count(), "n_burns": len(burns),
                         "n_objects": len(ctx.tles), "results": rows}, indent=2), encoding="utf-8")
     return 0
 

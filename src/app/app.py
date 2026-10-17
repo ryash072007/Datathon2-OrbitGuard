@@ -26,7 +26,41 @@ ISS_NORAD = 25544
 
 def platform_info() -> dict:
     return {"machine": platform.machine(), "byteorder": sys.byteorder, "cpu_count": os.cpu_count(),
-            "system": platform.system(), "python": platform.python_version()}
+            "system": platform.system(), "python": platform.python_version(),
+            "container": in_container()}
+
+
+def in_container() -> bool:
+    return Path("/.dockerenv").exists() or bool(os.environ.get("container")) or bool(os.environ.get("IN_DOCKER"))
+
+
+def load_speedup() -> dict | None:
+    p = latest_file("speedup_*.json")
+    if not p:
+        return None
+    d = json.loads(p.read_text(encoding="utf-8"))
+    mach = d.get("machine")
+    if mach == "s390x":
+        d["context"] = "IBM LinuxONE (s390x)"
+    elif mach:
+        d["context"] = f"{d.get('system', '')} {mach} · {d['host']}".strip()
+    else:
+        d["context"] = f"host {d['host']} (machine type not recorded)"
+    d["linuxone"] = mach == "s390x"
+    return d
+
+
+def audit_head() -> dict | None:
+    """Last record of the hash-chained decision log (seq, hash, utc, count), if present."""
+    try:
+        from src.audit.log import DEFAULT_PATH
+        lines = [ln for ln in DEFAULT_PATH.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        if not lines:
+            return None
+        last = json.loads(lines[-1])
+        return {"seq": last["seq"], "hash": last["record_hash"], "utc": last["utc"], "n": len(lines)}
+    except (OSError, ValueError, KeyError, ImportError):
+        return None
 
 
 def out_dir() -> Path:
@@ -109,6 +143,7 @@ def default_decision() -> dict | None:
 
 def create_app() -> Flask:
     app = Flask(__name__)
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # static assets always revalidate (dashboard is edited live)
     jobs = Jobs()
     default_cdm = int(os.environ.get("DEFAULT_CDM_EVENT", "8"))
 
@@ -159,8 +194,24 @@ def create_app() -> Flask:
                 brief = json.loads(_brief_cache(norad).read_text(encoding="utf-8"))
         net = load_network()
         cons = (facts or {}).get("consequence") or {}
+        decision = ((facts or {}).get("risk") or {}).get("decision") or default_decision()
+        boot = {
+            "norad": norad, "have_facts": bool(facts), "event": (facts or {}).get("event"),
+            "burns": (facts or {}).get("burns"), "cons": cons or None, "decision": decision,
+            "live_pc": ((facts or {}).get("risk") or {}).get("live_pc"),
+            "survey": [{k: r[k] for k in ("primary", "norad", "threat", "rank_pc", "rank_harm", "pc", "harm")
+                        if k in r} for r in survey],
+            "net": ({"summary": net["summary"], "params": net["params"], "timings": net["timings"],
+                     "nodes": [{k: n.get(k) for k in ("rank", "norad", "name", "type", "degree", "score",
+                                                      "perigee_km", "apogee_km", "inclination_deg")}
+                               for n in net["nodes"]],
+                     "edges": [[e["a"], e["b"]] for e in net["edges"]]} if net else None),
+            "brief": ({k: brief.get(k) for k in ("backend_used", "grounded", "issues")} if brief else None),
+            "speedup": load_speedup(), "audit": audit_head(), "platform": platform_info(),
+            "llm_backend": os.environ.get("LLM_BACKEND", "template"),
+        }
         return render_template(
-            "index.html", events=events, norad=norad, facts=facts, brief=brief, platform=platform_info(),
+            "index.html", boot=boot, events=events, norad=norad, facts=facts, brief=brief, platform=platform_info(),
             burns=((facts or {}).get("burns") or {}).get("top", []),
             decision=((facts or {}).get("risk") or {}).get("decision") or default_decision(),
             brief_html=markdown_html(brief["text"]) if brief else "",
