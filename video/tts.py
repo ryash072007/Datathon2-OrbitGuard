@@ -66,8 +66,12 @@ def seed_everything(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def trim_silence(x: np.ndarray, sr: int = SR, thresh_db: float = -45.0) -> np.ndarray:
-    keep = int(KEEP_S * sr)
+def split_sentences(text: str) -> list[str]:
+    return [t for t in re.split(r"(?<=[.!?])\s+", text.strip()) if t]
+
+
+def trim_silence(x: np.ndarray, sr: int = SR, thresh_db: float = -45.0, keep_s: float = KEEP_S) -> np.ndarray:
+    keep = int(keep_s * sr)
     peak = np.max(np.abs(x)) + 1e-9
     idx = np.where(np.abs(x) > peak * 10 ** (thresh_db / 20))[0]
     if idx.size == 0:
@@ -107,7 +111,8 @@ def make_engine(args):
 
         def synth(text: str) -> tuple[np.ndarray, int]:
             wav = model.generate(text, audio_prompt_path=args.voice,
-                                 exaggeration=args.exaggeration, cfg_weight=args.cfg)
+                                 exaggeration=args.exaggeration, cfg_weight=args.cfg,
+                                 temperature=args.temperature)
             return wav.squeeze().cpu().numpy(), model.sr
         return synth, device
     if args.engine == "kokoro":
@@ -120,6 +125,39 @@ def make_engine(args):
                      for _, _, a in pipe(text, voice=voice)]
             return np.concatenate(parts), 24000
         return synth, device
+    if args.engine == "orpheus":
+        # Run with video/.venv-orpheus. Weights: unsloth mirror of canopylabs/orpheus-3b-0.1-ft (ungated).
+        from snac import SNAC
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        name = "unsloth/orpheus-3b-0.1-ft"
+        tok = AutoTokenizer.from_pretrained(name)
+        lm = AutoModelForCausalLM.from_pretrained(name, torch_dtype=torch.bfloat16).to(device)
+        snac = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").to(device).eval()
+        voice = args.voice or "tara"
+
+        def synth(text: str) -> tuple[np.ndarray, int]:
+            ids = tok(f"{voice}: {text}", return_tensors="pt").input_ids
+            ids = torch.cat([torch.tensor([[128259]]), ids, torch.tensor([[128009, 128260]])], 1).to(device)
+            out = lm.generate(ids, attention_mask=torch.ones_like(ids), max_new_tokens=2000, do_sample=True,
+                              temperature=args.temperature if args.temperature != 0.8 else 0.6,
+                              top_p=0.8, repetition_penalty=1.1, eos_token_id=128258)[0, ids.shape[1]:]
+            out = out.tolist()
+            if 128257 in out:
+                out = out[len(out) - out[::-1].index(128257):]
+            out = [t for t in out if t >= 128266]
+            out = out[: len(out) // 7 * 7]
+            c = [t - 128266 for t in out]
+            l0, l1, l2 = [], [], []
+            for i in range(0, len(c), 7):
+                f = c[i:i + 7]
+                l0.append(f[0]); l1 += [f[1] - 4096, f[4] - 4 * 4096]
+                l2 += [f[2] - 2 * 4096, f[3] - 3 * 4096, f[5] - 5 * 4096, f[6] - 6 * 4096]
+            codes = [torch.tensor(l, device=device)[None] for l in (l0, l1, l2)]
+            codes = [x.clamp(0, 4095) for x in codes]
+            with torch.no_grad():
+                a = snac.decode(codes)
+            return a.squeeze().float().cpu().numpy(), 24000
+        return synth, device
     raise SystemExit(f"unknown engine {args.engine}")
 
 
@@ -127,11 +165,13 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--script", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--engine", default="chatterbox", choices=["chatterbox", "kokoro"])
+    ap.add_argument("--engine", default="chatterbox", choices=["chatterbox", "kokoro", "orpheus"])
     ap.add_argument("--voice", default=None, help="reference wav (chatterbox) or voice name (kokoro)")
     ap.add_argument("--exaggeration", type=float, default=0.4)
     ap.add_argument("--cfg", type=float, default=0.5)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--temperature", type=float, default=0.8)
+    ap.add_argument("--pause-ms", type=int, default=240, help="gap between sentences")
     args = ap.parse_args()
 
     segs = json.loads(Path(args.script).read_text(encoding="utf-8"))
@@ -149,12 +189,17 @@ def main() -> None:
         text = preprocess(seg["text"])
         seed_everything(args.seed)
         t0 = time.time()
-        x, sr = synth(text)
+        pieces = []
+        for sent in split_sentences(text):
+            seed_everything(args.seed)
+            y, sr = synth(sent)
+            if sr != SR:
+                import torchaudio
+                y = torchaudio.functional.resample(torch.from_numpy(y), sr, SR).numpy()
+            pieces.append(trim_silence(y.astype(np.float32), keep_s=0.02))
+            pieces.append(np.zeros(int(args.pause_ms / 1000 * SR), np.float32))
+        x = trim_silence(np.concatenate(pieces[:-1]))
         gen = time.time() - t0
-        if sr != SR:
-            import torchaudio
-            x = torchaudio.functional.resample(torch.from_numpy(x), sr, SR).numpy()
-        x = trim_silence(x.astype(np.float32))
         with tempfile.TemporaryDirectory() as td:
             raw = Path(td) / "raw.wav"
             write_wav(raw, x, SR)
