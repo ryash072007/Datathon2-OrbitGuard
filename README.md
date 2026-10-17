@@ -27,12 +27,41 @@ navigation, weather, communications and crewed stations in low Earth orbit.
 
 | Step | What the operator gets | AI / ML used |
 | --- | --- | --- |
-| **Detect** (Encounters) | Replays each historical CDM through the server: forecast, alert, **Act / Wait / Monitor**, P(high risk), 80% interval, reasons and measured latency | Gradient-boosted residual (triage ranking), calibrated logistic classifier (P(high)), quantile gradient boosting (interval), cross-validated rule layer, experimental missed-alert guard |
-| **Decide** (Manoeuvre planning, Live catalogue) | Screens 37 synthetic or 145 real candidate burns against **every** nearby object with NASA-validated Pc at 0.5x/1x/2x uncertainty. Recommends the cheapest safe burn or **abstains**, and shows what a pair-only check would have done | Physics plus a decision rule (deliberately no ML in the safety gate) |
+| **Detect** (Encounters) | Replays each historical CDM through the server: forecast, alert, **Act / Wait / Monitor**, P(high risk), 80% interval, reasons and measured latency. A second model gives an independent P(high) and flags the event for review when the two disagree | Gradient-boosted residual (triage ranking), calibrated logistic classifier (P(high)), quantile gradient boosting (interval), cross-validated rule layer, **IBM Snap ML** boosted trees scored on the Telum accelerator through zDNN (second opinion) |
+| **Decide** (Manoeuvre planning, Live catalogue) | Screens 37 synthetic or 145 real candidate burns against **every** nearby object with NASA-validated Pc at 0.5x/1x/2x uncertainty. Recommends the cheapest safe burn or **abstains**, and shows what a pair-only check would have done. A learned search then looks *between* the grid points for a cheaper burn that passes the same rule | Physics decides what is safe. **Constrained Bayesian optimisation** (a Gaussian-process model of the safety margin) proposes burns, and every proposal is re-checked by the full physics rule before it can be recommended |
 | **Weigh** (Live catalogue) | Debris from a hypothetical collision, satellites exposed over 30 days, expected harm; Pc rank vs harm rank; catalogue-wide super-spreaders | NASA breakup model, kinetic-gas exposure, graph scoring |
-| **Explain** | An operator brief from **IBM Granite 3.3 2B running on LinuxONE**. A grounding guard checks every number against the computed facts and falls back to a template if any number is invented | Generative AI (narrates, never decides) |
-| **Account** | Operator accept / defer / reject, plus every forecast, screen and brief, appended to a hash-chained audit log | |
-| **Scale** | The same P(high) scorer as a Keras MLP on the **Telum on-chip AI accelerator (NNPA)**: 2.67x faster than CPU at 1M rows | TensorFlow + IBM zDNN plugin |
+| **Explain** | An operator brief from **IBM Granite 3.3 2B running on LinuxONE**. Two checks run before the operator sees it: a numeric guard (every number must match a computed fact) and **IBM Granite Guardian** (is the text supported by the facts at all?). Either one failing swaps in a template brief | Generative AI that narrates and never decides, plus an AI checker for the AI |
+| **Ask** (Live catalogue) | The operator types a question such as "what if I burn one orbit later?" Granite picks from read-only tools (look up a screened burn, compare with the pair-only policy, debris consequence, audit trail), and the answer goes through both guards | Agentic Granite with JSON-grammar tool calls. The tools only read results the physics already computed |
+| **Account** | Operator accept / defer / reject, plus every forecast, screen, brief and question, appended to a hash-chained audit log (SHA-256, which OpenSSL runs on the CPACF crypto instructions on IBM Z) | |
+| **Scale** | The P(high) scorers on the **Telum on-chip AI accelerator (NNPA)**: a Keras MLP through the IBM zDNN TensorFlow plugin (2.67x faster than CPU at 1M rows) and Snap ML tree inference through zDNN | TensorFlow + IBM zDNN plugin, IBM Snap ML |
+
+## Where the AI earns its place, and where it doesn't
+
+We tested every AI component against a simple, non-AI alternative on the same data, and we report the losses
+along with the wins. Numbers in this table are from the 12-core development PC unless marked. The LinuxONE
+pipeline regenerates all of them, and the console's Validation tab shows whichever run is on the server, labelled
+with its host.
+
+| Question | Answer | Evidence |
+| --- | --- | --- |
+| Can ML forecast the final ESA risk better than "copy the latest message"? | **No, not significantly.** The decision layer's ESA loss is 0.680 vs 0.694, but the paired-bootstrap 95% CI of the difference is [−0.071, +0.040]. We keep the baseline as the default forecast | `decision-eval` → `artifacts/ml/decision_evidence.json` |
+| Can ML rank dangerous encounters better? | **Yes, a little.** Triage average precision 0.7005 vs 0.6651, CI [+0.004, +0.064] (LinuxONE). Snap ML 0.705, CI vs naive [−0.011, +0.088], not significant on its own | `evaluate-triage`, `zai-eval` |
+| Does that save an operator work? | **Not at an equal alert budget.** At the naive rule's 178 alerts, triage catches 110 high-risk events vs 115 (difference CI [−14, +4]). Run in safety-first mode, ML catches a few more events, costing about 9 extra reviews per extra catch | `workload-eval` → `artifacts/ml/workload_evidence.json` |
+| Can learning find cheaper safe burns? | **Yes.** On the 50 frozen scenarios, Bayesian optimisation needs a median **12.5% less Δv** than the grid (ratio 0.875, CI [0.826, 0.889]). It wins 30, ties 10 and loses 0, and every pick is physics-verified. Random search with the same 37 physics evaluations does worse than the grid (1.72x Δv). Abstentions match the grid, and no impossible scenario was "solved" | `optimise-burns` → `artifacts/optimise/evidence.json` |
+| Can an AI check another AI's writing? | See the guard evaluation. The numeric guard catches changed numbers, and Granite Guardian is there for the errors that contain no number at all (wrong direction, "the pair-only burn is safe") | `guard-eval` → `artifacts/llm/guard_eval.json` |
+
+So the ML is not the oracle. The AI does three useful jobs: it ranks the queue a little better, it finds cheaper
+burns that the physics can then prove safe, and it explains and answers questions under two independent checks.
+None of it can override the physics or the operator.
+
+## For judges: where to look
+
+| Criterion | Where it shows |
+| --- | --- |
+| Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
+| Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite Guardian checking Granite |
+| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN, Snap ML), Granite and Granite Guardian on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/` |
+| Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 180+ tests. The console reads only artefacts and shows "missing" instead of a number it can't back |
 
 ## Architecture
 
@@ -44,8 +73,10 @@ flowchart LR
     PH["Validated Pc (NASA CARA cases)<br/>synthetic planner · abstention"]
     CAT["Catalogue screener<br/>SGP4 + J2 deltas · process pool"]
     CON["Consequence · network · survey"]
-    LLM["Granite 3.3 2B (llama.cpp, BE GGUF)<br/>+ grounding guard"]
-    NN["Keras MLP on Telum NNPA"]
+    OPT["Learned burn search<br/>GP feasibility model · physics re-check"]
+    LLM["Granite 3.3 2B (llama.cpp, BE GGUF)<br/>brief + Ask agent (read-only tools)"]
+    GRD["Numeric guard + Granite Guardian"]
+    NN["Telum NNPA via zDNN<br/>Keras MLP · Snap ML trees"]
     AUD[("Hash-chained audit log")]
     ART[("Frozen models + evidence<br/>SHA-256 fingerprints")]
   end
@@ -53,8 +84,11 @@ flowchart LR
   CT[(CelesTrak TLE + SATCAT)] --> CAT
   CAT --> PH
   CAT --> CON
+  OPT <--> PH
+  ML --> NN
   ML & PH & CAT & CON --> LLM
-  API --> ML & PH & CAT & CON & LLM & AUD
+  LLM --> GRD
+  API --> ML & PH & OPT & CAT & CON & LLM & AUD
   ML & PH --> ART
   UI[React console] -- SSH tunnel --> API
   OP((Operator)) --> UI
@@ -64,7 +98,8 @@ Data flow for one live decision: SGP4 finds the closest approach in the next 3 d
 6 sizes × 4 lead times) are screened in parallel against every object in the altitude band → each close approach is
 refined to its true TCA and scored with the validated Pc → the cheapest burn meeting the miss target with every
 worst-case Pc ≤ 10⁻⁴ is recommended (or the tool abstains) → the consequence engine and network give context →
-Granite writes the brief → the operator decides and the choice is logged.
+Granite writes the brief, Guardian and the numeric guard check it → the operator can ask follow-up questions, then
+decides, and the choice is logged.
 
 ## Results
 
@@ -96,7 +131,11 @@ added the decision-layer evaluation path.
 
 | Item | Result |
 | --- | --- |
-| Decision layer (ESA test) | L 0.680 vs naive 0.694; precision 0.673 vs 0.646; 80% interval covers 88% |
+| Decision layer (ESA test) | L 0.680 vs naive 0.694, but ΔL 95% CI [−0.071, +0.040], so **not significant**; precision 0.673 vs 0.646; 80% interval covers 88% |
+| Snap ML second opinion (CPU, x86 Linux container) | AP 0.705 vs naive 0.665, CI [−0.011, +0.088]; vs decision-layer P(high) +0.092, CI [+0.041, +0.143]; 54M rows/s at 100k rows on CPU. The zDNN path still needs its VM run |
+| Alert workload, equal budget (178 alerts) | Naive 115 caught; triage 110 (CI of difference [−14, +4]); decision P(high) 103 ([−22, −2]) |
+| Learned burn search, 50 scenarios, 37 evaluations | Median Δv 0.875x the grid, CI [0.826, 0.889], 30 wins / 10 ties / 0 losses; uniform random 1.72x; finer grid 0.93x; abstentions identical |
+| Learned burn search, ISS live event | 0.18 m/s (warm-started) vs grid 0.20 m/s, same all-object rule; one event, so no statistics |
 | Merged screener, ISS vs ENSHI XIDA SHANQUAN | Miss **3.89 km** after TCA refinement (1 s sampling alone gave 4.98 km); best burn −T 0.2 m/s three orbits ahead → 10.8 km, worst-case Pc 7.5×10⁻¹⁰; 145 burns × 6,754 objects in 12 s |
 | Consequence, ISS event | About 11k fragments ≥ 10 cm; 8,943 satellites with ≥ 1 expected pass within 1 km |
 | Pc vs harm ranking | Spearman 0.78; 11 of 20 events move 3 or more places |
@@ -109,13 +148,19 @@ added the decision-layer evaluation path.
   (process pool with an explicit little-endian `<f8` ephemeris memmap shared between workers) and the network
   sweep all run on the VM's cores.
 - **On-chip AI.** The Telum NNPA accelerates the Keras P(high) scorer through TensorFlow and the IBM zDNN plugin, 2.67x at scale.
+  **IBM Snap ML** scores its boosted trees through zDNN as well (`tree_format="zdnn_tensors"`, the same PMML trees as the CPU
+  path), so the live forecast's second opinion runs on the accelerator. `orbitguard zai-bench` writes the CPU-vs-NNPA table.
+- **IBM's own models, on the box.** Granite 3.3 2B writes the brief and drives the Ask agent. Granite Guardian checks
+  that the brief is supported by the facts. Both run in llama.cpp on big-endian GGUFs, so nothing leaves the machine.
 - **On-box GenAI and data residency.** Granite runs locally via llama.cpp on a big-endian GGUF converted for s390x
   ([porting](docs/porting.md)). No external AI API is called; only public TLE and SATCAT downloads come in.
 - **Porting done properly.** The sgp4 C extension is built from source (the s390x pure-Python fallback was about 70x
   slower). The code uses explicit byte order, spawn-safe multiprocessing, and models retrained on the VM rather than copied.
 - **Security and integrity.** A hardened systemd unit (NoNewPrivileges, ProtectSystem=strict, writes only to
   `artifacts/`) binds to loopback behind an SSH tunnel. Model fingerprints are SHA-256. The audit log is a hash
-  chain. Secure Execution and pervasive encryption are a design note, not something we ran.
+  chain. Python's `hashlib` goes through OpenSSL, which uses the CPACF crypto instructions on IBM Z for SHA-256;
+  `scripts/evidence.sh` records the message-security-assist flags and throughput. Secure Execution and pervasive
+  encryption are a design note, not something we ran.
 - **Containerised.** A multi-stage [Dockerfile](Dockerfile) builds the console and runs gunicorn on the official s390x image.
 
 ## Run it
@@ -157,7 +202,8 @@ docker run -d -p 8080:8080 -v $PWD/artifacts:/app/artifacts orbitguard
 `orbitguard <command>`: `fetch-data`, `prepare-data`, `train`, `evaluate`, `audit-accuracy`, `train-triage`,
 `evaluate-triage`, `train-guard`, `evaluate-guard`, `decision-fit`, `decision-eval`, `validate-physics`,
 `benchmark-planner`, `benchmark-runtime`, `screen-live`, `consequence`, `validate-breakup`, `network`, `brief`,
-`nnpa-bench`, `nnpa-report`, `audit-verify`, `environment`, `serve`.
+`nnpa-bench`, `nnpa-report`, `workload-eval`, `zai-fit`, `zai-eval`, `zai-bench`, `optimise-burns`, `guard-eval`,
+`ask`, `audit-verify`, `environment`, `serve`.
 
 ## Evaluation integrity
 
@@ -178,8 +224,12 @@ docker run -d -p 8080:8080 -v $PWD/artifacts:/app/artifacts orbitguard
   mix is a stress test, not real-world prevalence.
 - Masses are assumed by object type. The break-up model under-predicts fragment counts (ratios 0.35 to 0.77), so
   consequence and super-spreader scores are for ranking.
-- The decision layer's gain over the baseline is small and its 80% interval is wide. Granite sometimes phrases
-  uncertainty loosely; the guard checks numbers, not wording.
+- The decision layer's gain over the baseline is not statistically significant, and its 80% interval is wide. At an
+  equal alert budget no ML ranker beats the naive rule.
+- The learned burn search covers along-track burns in the grid's time window. Its gain is measured on the synthetic
+  suite; on the live catalogue we have a single event.
+- Granite 2B sometimes picks the wrong tool arguments in Ask, and then the guard falls back to a template answer.
+  Granite Guardian needs the Q8_0 quantisation: at Q4_K_M it flagged good and bad briefs alike, so we don't use it.
 
 ## Repository map
 
@@ -190,11 +240,13 @@ orbitguard/physics/      validated Pc, two-body propagation, synthetic planner a
 orbitguard/catalog/      CelesTrak catalogue, SGP4 + J2 burn deltas, parallel screener, Pc bridge (collision.py)
 orbitguard/consequence/  breakup, debris cloud, exposure, expected harm, survey, break-up validation
 orbitguard/network/      catalogue-wide close-approach graph and super-spreader score
-orbitguard/brief/        facts, Granite / OpenAI-compatible / template backends, grounding guard
+orbitguard/brief/        facts, Granite / OpenAI-compatible / template backends, numeric guard, Granite Guardian, Ask agent, guard eval
 orbitguard/audit/        hash-chained decision log
 orbitguard/nnpa/         Telum NNPA benchmark (TensorFlow + ibm-zdnn-plugin)
+orbitguard/zai/          IBM Snap ML second-opinion scorer, zDNN tree inference, CPU-vs-NNPA bench
+orbitguard/optimise/     constrained Bayesian-optimisation burn search, verified by the physics rule
 orbitguard/api.py, live.py   Flask API: forecasts, replay, planning jobs, live catalogue, brief, audit, platform
-frontend/                React console (Encounters, Manoeuvre planning, Live catalogue, Validation, How it works)
+frontend/                React console (Encounters, Manoeuvre planning, Live catalogue + Ask, Validation + AI evidence, How it works)
 scripts/ deploy/ Dockerfile   LinuxONE bootstrap, evidence pipeline, sync/tunnel, systemd, container
 docs/                    MERGE.md, RESULTS.md, ACCURACY_REVIEW.md, phases/, porting.md, vm_runbook.md, validation notes
 ```
