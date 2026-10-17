@@ -1,0 +1,21 @@
+flowchart TD
+  IN1["Conjunction warning / CDM history<br/>(ESA dataset replay)"] --> F
+  IN2["Live CelesTrak catalogue<br/>(TLE + SATCAT, SGP4 closest approach)"] --> S
+  F["Risk forecast<br/>ESA model + decision layer, validated Pc"] --> D
+  D{"Act / Wait / Monitor<br/>cross-validated rules"}
+  D -- "Wait / Monitor" --> BR
+  D -- "Act" --> S
+  S["Screen candidate burns against ALL nearby objects<br/>NASA-validated Pc at 0.5x / 1x / 2x uncertainty"] --> Q{"Any burn safe at all three levels?"}
+  Q -- "yes" --> REC["Recommend cheapest safe burn<br/>(learned search proposals re-checked by physics)"]
+  Q -- "no" --> ABS["Decline: abstain, nothing is safe"]
+  REC --> C
+  ABS --> C
+  C["Consequence engine<br/>if they collide: NASA breakup model, satellites at risk, debris globe"] --> BR
+  BR["Granite brief on the box<br/>(narrates computed facts only)"] --> G{"Grounding guard<br/>numeric guard + claim checker"}
+  G -- "grounded" --> OPR
+  G -- "ungrounded" --> TPL["Template brief fallback"] --> OPR
+  OPR(("Human operator<br/>accept / defer / reject"))
+  OPR --> AUD[("Hash-chained audit log<br/>SHA-256")]
+  NOTE["The LLM is not in the decision path:<br/>physics and rules decide, Granite only explains"]:::note
+  NOTE -.-> BR
+  classDef note fill:#fff8d6,stroke:#aa8800

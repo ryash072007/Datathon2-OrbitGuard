@@ -1,0 +1,38 @@
+flowchart LR
+  subgraph EXT["External data sources"]
+    ESA[("ESA Collision Avoidance Challenge dataset")]
+    CT[("CelesTrak TLE + SATCAT")]
+    CARA[("NASA CARA reference cases")]
+  end
+  subgraph CLIENT["Operator"]
+    BROWSER["Browser: React console"]
+  end
+  subgraph VM["IBM LinuxONE VM (s390x, big-endian)"]
+    TLS["socat TLS proxy, HTTPS 443<br/>Let's Encrypt IP certificate"]
+    subgraph CONT["Docker container"]
+      APP["gunicorn + Flask<br/>api.py / live.py"]
+      subgraph MODS["orbitguard modules"]
+        ML["ml: ESA forecast"]
+        DEC["decision: Act / Wait / Monitor"]
+        PHY["physics: validated Pc, planner"]
+        CAT["catalog: SGP4 screener"]
+        CON["consequence: breakup, exposure"]
+        NET["network: super-spreaders"]
+        BRIEF["brief: Granite + grounding guard"]
+        AUD["audit: hash chain"]
+        NNPA["nnpa: Telum scoring"]
+      end
+    end
+    LLM["Granite 3.3 2B<br/>llama.cpp, local"]
+    TF["TensorFlow + zDNN<br/>Telum NNPA"]
+    ART[("artifacts/ store")]
+  end
+  BROWSER <-->|HTTPS| TLS
+  TLS --> APP
+  APP --> ML & DEC & PHY & CAT & CON & NET & BRIEF & AUD
+  ML --> NNPA --> TF
+  BRIEF --> LLM
+  MODS <--> ART
+  ESA --> ML
+  CT --> CAT
+  CARA --> PHY

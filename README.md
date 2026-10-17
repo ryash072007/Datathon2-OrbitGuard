@@ -22,16 +22,17 @@ and the tool never commands a spacecraft.
 5. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
 6. [Results](#results)
 7. [Architecture](#architecture)
-8. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
-9. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
-10. [Run it](#run-it)
-11. [Evaluation integrity](#evaluation-integrity)
-12. [Limitations](#limitations)
-13. [Porting notes](#porting-notes)
-14. [Repository map](#repository-map)
-15. [Further documentation](#further-documentation)
-16. [Credits and open-source resources](#credits-and-open-source-resources)
-17. [Built during the event](#built-during-the-event)
+8. [Supporting documents](#supporting-documents)
+9. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
+10. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
+11. [Run it](#run-it)
+12. [Evaluation integrity](#evaluation-integrity)
+13. [Limitations](#limitations)
+14. [Porting notes](#porting-notes)
+15. [Repository map](#repository-map)
+16. [Further documentation](#further-documentation)
+17. [Credits and open-source resources](#credits-and-open-source-resources)
+18. [Built during the event](#built-during-the-event)
 
 ## Where to look, by judging criterion
 
@@ -152,6 +153,8 @@ builds before they were combined. `bash scripts/run-linuxone-pipeline.sh` regene
 
 ## Architecture
 
+Operator flow: see the [solution flowchart](docs/SOLUTION_OVERVIEW.md#solution-flowchart).
+
 Rendered diagram and notes: [docs/architecture-catalog.md](docs/architecture-catalog.md), [docs/architecture-catalog.svg](docs/architecture-catalog.svg).
 
 ```mermaid
@@ -189,6 +192,12 @@ refined to its true TCA and scored with the validated Pc → the cheapest burn m
 worst-case Pc ≤ 10⁻⁴ is recommended (or the tool abstains) → the consequence engine and network give context →
 Granite writes the brief, the numeric guard and claim checker check it → the operator can ask follow-up questions, then
 decides, and the choice is logged.
+
+## Supporting documents
+
+- [Solution flowchart](docs/SOLUTION_OVERVIEW.md#solution-flowchart) ([SVG](docs/diagrams/solution-flowchart.svg)): the operator flow from warning to audited decision.
+- [System architecture diagram](docs/SOLUTION_OVERVIEW.md#system-architecture) ([SVG](docs/diagrams/system-architecture.svg)): browser, HTTPS, container on LinuxONE, modules, data sources.
+- [Full overview with pipeline and deployment](docs/SOLUTION_OVERVIEW.md), and the technical documents it links (results, accuracy review, judging guide, VM runbook).
 
 ## Where AI is used, and where it deliberately is not
 
