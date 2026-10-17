@@ -29,6 +29,18 @@ python -m src.risk.decision eval   # naive vs chosen candidate on test (once), i
 `predict_risk` uses `models/decision.joblib` when present (else the naive latest-CDM risk);
 `src.risk.decision.decide(cdms)` returns action (ACT/WAIT/MONITOR), P(high), 80% interval and reasons.
 
+## Phase 3: manoeuvre screener
+
+```bash
+python -m src.screen.run --primary 25544 --days 3 --target-km 2          # find closest approach, screen 145 burns, write data/out/screen_*.csv/json
+python -m src.screen.run --primary 25544 --days 3 --benchmark            # also writes data/out/speedup_<host>.json (1,2,4..cpu_count workers)
+python -m src.screen.run --primary 25544 --threat 12345 --workers 8      # force the threat; WORKERS env var sets the default
+python -m pytest tests -q
+```
+
+Downloads CelesTrak TLEs to `data/raw/celestrak/` (cached 6 h). The catalogue ephemeris is a `<f8` memmap in `data/cache/`
+(regenerated on each machine, never copied).
+
 ## Credits
 
 - ESA Collision Avoidance Challenge dataset: https://zenodo.org/records/4463683 and https://kelvins.esa.int/collision-avoidance-challenge/
@@ -38,3 +50,7 @@ python -m src.risk.decision eval   # naive vs chosen candidate on test (once), i
 - scikit-learn: https://scikit-learn.org
 - SciPy: https://scipy.org
 - joblib: https://joblib.readthedocs.io
+- CelesTrak (TLE catalogue): https://celestrak.org
+- sgp4 Python library: https://pypi.org/project/sgp4/
+- Vallado, Crawford, Hujsak, Kelso, "Revisiting Spacetrack Report #3": https://celestrak.org/publications/AIAA/2006-6753/
+- Bombardelli group, along-track manoeuvre optimality: https://oa.upm.es/51461/
