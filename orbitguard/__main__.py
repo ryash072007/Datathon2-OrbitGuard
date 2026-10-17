@@ -20,6 +20,7 @@ MODULE_COMMANDS = {
     "audit-verify": ("orbitguard.audit", ["verify"]),
     "nnpa-bench": ("orbitguard.nnpa.bench", []),
     "nnpa-report": ("orbitguard.nnpa.report", []),
+    "workload-eval": ("orbitguard.decision.workload", []),
 }
 
 

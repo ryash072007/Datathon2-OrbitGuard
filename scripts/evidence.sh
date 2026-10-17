@@ -24,7 +24,23 @@ if [ -e /sys/firmware/uv/prot_virt_guest ]; then
 else
   echo "absent: /sys/firmware/uv/prot_virt_guest (not an IBM Secure Execution guest)"
 fi >"$OUT/secure_execution.txt"
-"$PY" -m pip list 2>/dev/null | grep -iE '^(numpy|pandas|scipy|scikit-learn|sgp4|flask|joblib|llama[-_]cpp[-_]python|pytest|matplotlib|requests) ' >"$OUT/pip_libs.txt" || echo "pip list unavailable" >"$OUT/pip_libs.txt"
+# On-chip crypto (CPACF). The audit chain and model fingerprints are SHA-256 through Python's hashlib, which uses
+# OpenSSL; on s390x OpenSSL issues the CPACF KIMD instruction when the message-security-assist facility is present.
+{ echo "--- message-security-assist facilities in /proc/cpuinfo features"
+  grep -m1 -i '^features' /proc/cpuinfo | tr ' ' '\n' | grep -iE '^msa' || echo "no msa flags listed"
+  echo "--- icainfo (libica view of CPACF; needs libica-utils)"
+  if have icainfo; then icainfo 2>&1 | grep -iE 'sha|aes|function|hw' | head -n 30; else echo "icainfo not installed"; fi
+  echo "--- openssl speed sha256 (1 s per size)"
+  if have openssl; then openssl speed -seconds 1 -evp sha256 2>&1 | tail -n 3; else echo "openssl not available"; fi
+  echo "--- python hashlib sha256 throughput"
+  "$PY" - <<'PYEOF' 2>&1
+import hashlib, time
+buf = b"\0" * (64 << 20)
+t0 = time.perf_counter(); hashlib.sha256(buf).hexdigest(); dt = time.perf_counter() - t0
+print(f"hashlib.sha256 over 64 MiB: {64 / dt:.0f} MiB/s ({hashlib.sha256().name}, OpenSSL-backed)")
+PYEOF
+} >"$OUT/cpacf_crypto.txt" 2>&1 || true
+"$PY" -m pip list 2>/dev/null | grep -iE '^(numpy|pandas|scipy|scikit-learn|sgp4|flask|joblib|llama[-_]cpp[-_]python|pytest|matplotlib|requests|snapml|tensorflow|ibm[-_]zdnn[-_]plugin|gunicorn) ' >"$OUT/pip_libs.txt" || echo "pip list unavailable" >"$OUT/pip_libs.txt"
 { have docker && { echo "# docker ps"; docker ps 2>&1 || true; }
   have podman && { echo "# podman ps"; podman ps 2>&1 || true; }
   have docker || have podman || echo "no container runtime found"; } >"$OUT/containers.txt"
