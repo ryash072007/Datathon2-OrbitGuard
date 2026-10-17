@@ -41,6 +41,15 @@ python -m pytest tests -q
 Downloads CelesTrak TLEs to `data/raw/celestrak/` (cached 6 h). The catalogue ephemeris is a `<f8` memmap in `data/cache/`
 (regenerated on each machine, never copied).
 
+## Phase 4: consequence engine ("what if it collides?")
+
+```
+python -m src.consequence.run --primary 25544            # breakup -> debris cloud -> exposed satellites -> expected harm
+python -m src.consequence.run --survey 20 --seed 0       # Pc ranking vs expected-harm ranking, Spearman rho
+```
+
+Masses are rough assumptions (`src/consequence/objects.py`); outputs go to `data/out/`.
+
 ## Credits
 
 - ESA Collision Avoidance Challenge dataset: https://zenodo.org/records/4463683 and https://kelvins.esa.int/collision-avoidance-challenge/
@@ -54,3 +63,4 @@ Downloads CelesTrak TLEs to `data/raw/celestrak/` (cached 6 h). The catalogue ep
 - sgp4 Python library: https://pypi.org/project/sgp4/
 - Vallado, Crawford, Hujsak, Kelso, "Revisiting Spacetrack Report #3": https://celestrak.org/publications/AIAA/2006-6753/
 - Bombardelli group, along-track manoeuvre optimality: https://oa.upm.es/51461/
+- Johnson et al., "NASA's new breakup model of EVOLVE 4.0" (2001): https://doi.org/10.1016/S0273-1177(01)00423-9
