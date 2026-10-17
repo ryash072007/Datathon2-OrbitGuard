@@ -3,12 +3,44 @@
 > **Avoiding one satellite should not put another in danger.** OrbitGuard tells an operator how likely a close
 > approach is, which burn avoids it without creating a new one, and what a collision would cost everyone else in orbit.
 
-**Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond). Data and the language model stay on the box,
-and every recommendation and operator choice is logged to a tamper-evident chain, so it also covers *AI Secured*.
-This is decision support. A human operator makes every call, and the tool never commands a spacecraft.
+**Event code: `SSF2026`** · **Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond) · **Runs on IBM LinuxONE (s390x, big-endian)**
 
-Event code: `SSF2026`. This repository merges two in-event builds by Team Datathon2, with both git histories
-preserved; see [docs/MERGE.md](docs/MERGE.md).
+- Live console: https://148.100.76.224
+- Demo video: `[video link]`
+- Team: `[team member names]`
+
+Data and the language model stay on the box, and every recommendation and operator choice is logged to a
+tamper-evident chain, so it also covers *AI Secured*. This is decision support. A human operator makes every call,
+and the tool never commands a spacecraft.
+
+## Contents
+
+1. [Where to look, by judging criterion](#where-to-look-by-judging-criterion)
+2. [The problem, with data](#the-problem-with-data)
+3. [What it does](#what-it-does)
+4. [Live demo](#live-demo)
+5. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
+6. [Results](#results)
+7. [Architecture](#architecture)
+8. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
+9. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
+10. [Run it](#run-it)
+11. [Evaluation integrity](#evaluation-integrity)
+12. [Limitations](#limitations)
+13. [Porting notes](#porting-notes)
+14. [Repository map](#repository-map)
+15. [Further documentation](#further-documentation)
+16. [Credits and open-source resources](#credits-and-open-source-resources)
+17. [Built during the event](#built-during-the-event)
+
+## Where to look, by judging criterion
+
+| Criterion | Where it shows |
+| --- | --- |
+| Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
+| Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite answering operator questions through read-only tools, under guards we measured |
+| LinuxONE and AI/ML | [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/`. Both prerequisite labs: [completed on the VM](#prerequisite-labs-completed-on-linuxone) |
+| Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 200 tests, including [enforced data boundaries](docs/DATA_BOUNDARIES.md) (only evaluation code can read labels; the physics gate imports nothing from the ML, Granite or the operator log). The console reads only artefacts and shows "missing" instead of a number it can't back |
 
 ## The problem, with data
 
@@ -35,77 +67,42 @@ navigation, weather, communications and crewed stations in low Earth orbit.
 | **Account** | Operator accept / defer / reject, plus every forecast, screen, brief and question, appended to a hash-chained audit log (SHA-256, which OpenSSL runs on the CPACF crypto instructions on IBM Z) | |
 | **Scale** | The P(high) scorers on the **Telum on-chip AI accelerator (NNPA)**: a Keras MLP through the IBM zDNN TensorFlow plugin (**3.4x** faster than CPU at 1M rows on the z17 VM). Snap ML's zDNN tree path was tested too: identical predictions, but slower than its CPU path on this VM, so the live second opinion uses CPU | TensorFlow + IBM zDNN plugin, IBM Snap ML |
 
-## Where the AI earns its place, and where it doesn't
+## Live demo
 
-We tested every AI component against a simple, non-AI alternative on the same data, and we report the losses
-along with the wins. Every number in this table was re-measured on the LinuxONE z17 VM on 2026-10-17 by
-`scripts/run-linuxone-pipeline.sh` (the seeded runs gave the same values as the development PC). The console's
-Validation tab reads the same artefacts and labels them with their host.
+The React console is served from the LinuxONE VM at https://148.100.76.224. Its tabs are Encounters, Manoeuvre planning,
+Live catalogue (with Ask), Validation and How it works. The Validation tab reads the evidence artefacts and shows
+"missing" where a number cannot be backed. Terminal captures from the VM are in [docs/vm_capture/](docs/vm_capture/), and
+screenshots are in [docs/evidence/](docs/evidence/README.md) and [docs/labs/](docs/labs/README.md). The demo video is linked at the top of this file.
 
-| Question | Answer | Evidence |
-| --- | --- | --- |
-| Can ML forecast the final ESA risk better than "copy the latest message"? | **No, not significantly.** The decision layer's ESA loss is 0.680 vs 0.694, but the paired-bootstrap 95% CI of the difference is [−0.071, +0.040]. We keep the baseline as the default forecast | `decision-eval` → `artifacts/ml/decision_evidence.json` |
-| Can ML rank dangerous encounters better? | **Yes, a little.** Triage average precision 0.7005 vs 0.6651, CI [+0.004, +0.064]. Snap ML 0.705, CI vs naive [−0.011, +0.088], not significant on its own | `evaluate-triage`, `zai-eval` |
-| Does that save an operator work? | **Not at an equal alert budget.** At the naive rule's 178 alerts, triage catches 110 high-risk events vs 115 (difference CI [−14, +4]). Run in safety-first mode, ML catches a few more events, costing about 9 extra reviews per extra catch | `workload-eval` → `artifacts/ml/workload_evidence.json` |
-| Can learning find cheaper safe burns? | **Yes.** On the 50 frozen scenarios, Bayesian optimisation needs a median **12.5% less Δv** than the grid (ratio 0.875, CI [0.826, 0.889]). It wins 30, ties 10 and loses 0, and every pick is physics-verified. Random search with the same 37 physics evaluations does worse than the grid (1.72x Δv). Abstentions match the grid, and no impossible scenario was "solved" | `optimise-burns` → `artifacts/optimise/evidence.json` |
-| Do the guards catch a wrong brief? | **Mostly.** Numeric guard: 78% of changed numbers (n=40). Claim checker: 100% of our synthetic non-numeric errors (n=40), but only **80% of errors Granite itself wrote** (n=10, a set the checker wasn't built against). Zero false alarms on 40 good, 10 held-out and 5 real Granite briefs. Granite Guardian (Q8_0) caught **0 of 40**, because a one-line error gets lost in a 2,000-character brief, so we left it off by default (`GUARDIAN_MODE=off`) | `guard-eval` → `artifacts/llm/guard_eval.json` |
+## How it uses IBM LinuxONE
 
-So the ML is not the oracle. The AI does three useful jobs: it ranks the queue a little better, it finds cheaper
-burns that the physics can then prove safe, and it explains and answers questions under two independent checks.
-None of it can override the physics or the operator.
-
-## For judges: where to look
-
-| Criterion | Where it shows |
-| --- | --- |
-| Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
-| Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite answering operator questions through read-only tools, under guards we measured |
-| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/`. Both prerequisite labs: [completed on the VM](#prerequisite-labs-completed-on-linuxone) |
-| Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 200 tests, including [enforced data boundaries](docs/DATA_BOUNDARIES.md) (only evaluation code can read labels; the physics gate imports nothing from the ML, Granite or the operator log). The console reads only artefacts and shows "missing" instead of a number it can't back |
-
-## Architecture
-
-```mermaid
-flowchart LR
-  subgraph L1["IBM LinuxONE (s390x, big-endian) · gunicorn + systemd or container"]
-    API[Flask API]:::svc
-    ML["ESA forecast + decision layer<br/>HGB residual · calibrated LR · quantile HGB"]
-    PH["Validated Pc (NASA CARA cases)<br/>synthetic planner · abstention"]
-    CAT["Catalogue screener<br/>SGP4 + J2 deltas · process pool"]
-    CON["Consequence · network · survey"]
-    OPT["Learned burn search<br/>GP feasibility model · physics re-check"]
-    LLM["Granite 3.3 2B (llama.cpp, BE GGUF)<br/>brief + Ask agent (read-only tools)"]
-    GRD["Numeric guard + claim checker"]
-    NN["Telum NNPA via zDNN<br/>Keras MLP (Snap ML second opinion)"]
-    AUD[("Hash-chained audit log")]
-    ART[("Frozen models + evidence<br/>SHA-256 fingerprints")]
-  end
-  ESA[(ESA CDM dataset)] --> ML
-  CT[(CelesTrak TLE + SATCAT)] --> CAT
-  CAT --> PH
-  CAT --> CON
-  OPT <--> PH
-  ML --> NN
-  ML & PH & CAT & CON --> LLM
-  LLM --> GRD
-  API --> ML & PH & OPT & CAT & CON & LLM & AUD
-  ML & PH --> ART
-  UI[React console] -- SSH tunnel --> API
-  OP((Operator)) --> UI
-```
-
-Data flow for one live decision: SGP4 finds the closest approach in the next 3 days → 145 burns (6 directions ×
-6 sizes × 4 lead times) are screened in parallel against every object in the altitude band → each close approach is
-refined to its true TCA and scored with the validated Pc → the cheapest burn meeting the miss target with every
-worst-case Pc ≤ 10⁻⁴ is recommended (or the tool abstains) → the consequence engine and network give context →
-Granite writes the brief, the numeric guard and claim checker check it → the operator can ask follow-up questions, then
-decides, and the choice is logged.
+- **Real-time compute on the box.** The forecast service, the parallel synthetic planner, the catalogue screener
+  (process pool with an explicit little-endian `<f8` ephemeris memmap shared between workers) and the network
+  sweep all run on the VM's cores.
+- **On-chip AI.** The Telum NNPA accelerates the Keras P(high) scorer through TensorFlow and the IBM zDNN plugin: 3.43x at
+  1M rows on the z17 VM, with TensorFlow's log showing the fused zDNN MatMul kernels in use. We also ran **IBM Snap ML**'s
+  boosted trees through zDNN (`tree_format="zdnn_tensors"`, the same PMML trees as the CPU path). Predictions were
+  identical but slower than Snap ML's compressed CPU trees here, so the second opinion picks the faster measured path
+  (`orbitguard zai-bench` writes the table, and the scorer reads it).
+- **IBM's own models, on the box.** Granite 3.3 2B writes the brief and drives the Ask agent in llama.cpp on a big-endian
+  GGUF, so nothing leaves the machine. Granite Guardian converts and runs the same way, and we measured it rather than assumed it helps.
+- **On-box GenAI and data residency.** Granite runs locally via llama.cpp on a big-endian GGUF converted for s390x
+  (see [Porting notes](#porting-notes)). No external AI API is called; only public TLE and SATCAT downloads come in.
+- **Porting done properly.** The sgp4 C extension is built from source (the s390x pure-Python fallback was about 70x
+  slower). The code uses explicit byte order, spawn-safe multiprocessing, and models retrained on the VM rather than copied.
+- **Security and integrity.** A hardened systemd unit (NoNewPrivileges, ProtectSystem=strict, writes only to
+  `artifacts/`) binds to loopback; the public demo at https://148.100.76.224 goes through a TLS proxy with a Let's Encrypt
+  IP certificate ([scripts/linuxone-public.sh](scripts/linuxone-public.sh)). Model fingerprints are SHA-256. The audit log is a hash
+  chain. Python's `hashlib` goes through OpenSSL, which uses the CPACF crypto instructions on IBM Z for SHA-256;
+  `scripts/evidence.sh` records the message-security-assist flags and throughput. Secure Execution and pervasive
+  encryption are a design note, not something we ran.
+- **Containerised.** A multi-stage [Dockerfile](Dockerfile) builds the console and runs gunicorn on the official s390x image.
 
 ## Results
 
-Every number below names the platform it was measured on. **Re-run `bash scripts/run-linuxone-pipeline.sh` on
-the VM after deploying this merged version** and quote those outputs: the merge changed the screener and
-added the decision-layer evaluation path.
+Every number below names the platform and build it was measured on. The code base combines two builds made during the
+event (see [Built during the event](#built-during-the-event)); tables marked "pre-merge" were measured on one of those
+builds before they were combined. `bash scripts/run-linuxone-pipeline.sh` regenerates the combined-build numbers.
 
 **Measured on the LinuxONE z17 VM, merged build, 2026-10-17** (`scripts/run-linuxone-pipeline.sh`, all 23 steps OK in 36 min on 3 vCPUs):
 
@@ -153,29 +150,65 @@ added the decision-layer evaluation path.
 | Break-up model vs real events | Predicted/catalogued 0.51 (Iridium-Cosmos), 0.35 (Fengyun-1C), 0.77 (Cosmos 1408) |
 | Network | 179,075 close approaches in 24 h across the catalogue |
 
-## Why IBM LinuxONE
+## Architecture
 
-- **Real-time compute on the box.** The forecast service, the parallel synthetic planner, the catalogue screener
-  (process pool with an explicit little-endian `<f8` ephemeris memmap shared between workers) and the network
-  sweep all run on the VM's cores.
-- **On-chip AI.** The Telum NNPA accelerates the Keras P(high) scorer through TensorFlow and the IBM zDNN plugin: 3.43x at
-  1M rows on the z17 VM, with TensorFlow's log showing the fused zDNN MatMul kernels in use. We also ran **IBM Snap ML**'s
-  boosted trees through zDNN (`tree_format="zdnn_tensors"`, the same PMML trees as the CPU path). Predictions were
-  identical but slower than Snap ML's compressed CPU trees here, so the second opinion picks the faster measured path
-  (`orbitguard zai-bench` writes the table, and the scorer reads it).
-- **IBM's own models, on the box.** Granite 3.3 2B writes the brief and drives the Ask agent in llama.cpp on a big-endian
-  GGUF, so nothing leaves the machine. Granite Guardian converts and runs the same way, and we measured it rather than assumed it helps.
-- **On-box GenAI and data residency.** Granite runs locally via llama.cpp on a big-endian GGUF converted for s390x
-  ([porting](docs/porting.md)). No external AI API is called; only public TLE and SATCAT downloads come in.
-- **Porting done properly.** The sgp4 C extension is built from source (the s390x pure-Python fallback was about 70x
-  slower). The code uses explicit byte order, spawn-safe multiprocessing, and models retrained on the VM rather than copied.
-- **Security and integrity.** A hardened systemd unit (NoNewPrivileges, ProtectSystem=strict, writes only to
-  `artifacts/`) binds to loopback; the public demo at https://148.100.76.224 goes through a TLS proxy with a Let's Encrypt
-  IP certificate ([scripts/linuxone-public.sh](scripts/linuxone-public.sh)). Model fingerprints are SHA-256. The audit log is a hash
-  chain. Python's `hashlib` goes through OpenSSL, which uses the CPACF crypto instructions on IBM Z for SHA-256;
-  `scripts/evidence.sh` records the message-security-assist flags and throughput. Secure Execution and pervasive
-  encryption are a design note, not something we ran.
-- **Containerised.** A multi-stage [Dockerfile](Dockerfile) builds the console and runs gunicorn on the official s390x image.
+Rendered diagram and notes: [docs/architecture-catalog.md](docs/architecture-catalog.md), [docs/architecture-catalog.svg](docs/architecture-catalog.svg).
+
+```mermaid
+flowchart LR
+  subgraph L1["IBM LinuxONE (s390x, big-endian) · gunicorn + systemd or container"]
+    API[Flask API]:::svc
+    ML["ESA forecast + decision layer<br/>HGB residual · calibrated LR · quantile HGB"]
+    PH["Validated Pc (NASA CARA cases)<br/>synthetic planner · abstention"]
+    CAT["Catalogue screener<br/>SGP4 + J2 deltas · process pool"]
+    CON["Consequence · network · survey"]
+    OPT["Learned burn search<br/>GP feasibility model · physics re-check"]
+    LLM["Granite 3.3 2B (llama.cpp, BE GGUF)<br/>brief + Ask agent (read-only tools)"]
+    GRD["Numeric guard + claim checker"]
+    NN["Telum NNPA via zDNN<br/>Keras MLP (Snap ML second opinion)"]
+    AUD[("Hash-chained audit log")]
+    ART[("Frozen models + evidence<br/>SHA-256 fingerprints")]
+  end
+  ESA[(ESA CDM dataset)] --> ML
+  CT[(CelesTrak TLE + SATCAT)] --> CAT
+  CAT --> PH
+  CAT --> CON
+  OPT <--> PH
+  ML --> NN
+  ML & PH & CAT & CON --> LLM
+  LLM --> GRD
+  API --> ML & PH & OPT & CAT & CON & LLM & AUD
+  ML & PH --> ART
+  UI[React console] -- SSH tunnel --> API
+  OP((Operator)) --> UI
+```
+
+Data flow for one live decision: SGP4 finds the closest approach in the next 3 days → 145 burns (6 directions ×
+6 sizes × 4 lead times) are screened in parallel against every object in the altitude band → each close approach is
+refined to its true TCA and scored with the validated Pc → the cheapest burn meeting the miss target with every
+worst-case Pc ≤ 10⁻⁴ is recommended (or the tool abstains) → the consequence engine and network give context →
+Granite writes the brief, the numeric guard and claim checker check it → the operator can ask follow-up questions, then
+decides, and the choice is logged.
+
+## Where AI is used, and where it deliberately is not
+
+We tested every AI component against a simple, non-AI alternative on the same data, and we report the losses
+along with the wins. Every number in this table was re-measured on the LinuxONE z17 VM on 2026-10-17 by
+`scripts/run-linuxone-pipeline.sh` (the seeded runs gave the same values as the development PC). The console's
+Validation tab reads the same artefacts and labels them with their host.
+
+| Question | Answer | Evidence |
+| --- | --- | --- |
+| Can ML forecast the final ESA risk better than "copy the latest message"? | **No, not significantly.** The decision layer's ESA loss is 0.680 vs 0.694, but the paired-bootstrap 95% CI of the difference is [−0.071, +0.040]. We keep the baseline as the default forecast | `decision-eval` → `artifacts/ml/decision_evidence.json` |
+| Can ML rank dangerous encounters better? | **Yes, a little.** Triage average precision 0.7005 vs 0.6651, CI [+0.004, +0.064]. Snap ML 0.705, CI vs naive [−0.011, +0.088], not significant on its own | `evaluate-triage`, `zai-eval` |
+| Does that save an operator work? | **Not at an equal alert budget.** At the naive rule's 178 alerts, triage catches 110 high-risk events vs 115 (difference CI [−14, +4]). Run in safety-first mode, ML catches a few more events, costing about 9 extra reviews per extra catch | `workload-eval` → `artifacts/ml/workload_evidence.json` |
+| Can learning find cheaper safe burns? | **Yes.** On the 50 frozen scenarios, Bayesian optimisation needs a median **12.5% less Δv** than the grid (ratio 0.875, CI [0.826, 0.889]). It wins 30, ties 10 and loses 0, and every pick is physics-verified. Random search with the same 37 physics evaluations does worse than the grid (1.72x Δv). Abstentions match the grid, and no impossible scenario was "solved" | `optimise-burns` → `artifacts/optimise/evidence.json` |
+| Do the guards catch a wrong brief? | **Mostly.** Numeric guard: 78% of changed numbers (n=40). Claim checker: 100% of our synthetic non-numeric errors (n=40), but only **80% of errors Granite itself wrote** (n=10, a set the checker wasn't built against). Zero false alarms on 40 good, 10 held-out and 5 real Granite briefs. Granite Guardian (Q8_0) caught **0 of 40**, because a one-line error gets lost in a 2,000-character brief, so we left it off by default (`GUARDIAN_MODE=off`) | `guard-eval` → `artifacts/llm/guard_eval.json` |
+
+So the ML is not the oracle. The AI does three useful jobs: it ranks the queue a little better, it finds cheaper
+burns that the physics can then prove safe, and it explains and answers questions under two independent checks.
+None of it can override the physics or the operator. The decision path itself (Pc, burn acceptance, abstention) contains
+no language model: Granite narrates computed facts, and the grounding guard rejects invented numbers.
 
 ## Prerequisite labs (completed on LinuxONE)
 
@@ -214,7 +247,7 @@ bash scripts/evidence.sh                                             # lscpu, NN
 python3 scripts/linuxone.py tunnel --host <VM_IP> --key key.pem      # laptop: open http://localhost:8080
 ```
 
-Granite on the VM: [docs/porting.md](docs/porting.md) and `scripts/convert_granite_bigendian.sh`, then set
+Granite on the VM: [Porting notes](#porting-notes) and `scripts/convert_granite_bigendian.sh`, then set
 `LLM_BACKEND=llamacpp` and `LLM_MODEL_PATH`. NNPA benchmark: `orbitguard nnpa-bench` inside the Jupyter ML image.
 Full runbook: [docs/vm_runbook.md](docs/vm_runbook.md).
 
@@ -261,6 +294,19 @@ docker run -d -p 8080:8080 -v $PWD/artifacts:/app/artifacts orbitguard
   The claim checker only knows the claim types we listed, and it caught 8 of the 10 errors Granite wrote, so it is
   a safety net, not a proof. Granite Guardian missed every subtle error at Q8_0 and flagged everything at Q4_K_M.
 
+## Porting notes
+
+- Granite must be a big-endian GGUF on s390x. Convert the Hugging Face safetensors on the VM with llama.cpp's
+  `convert_hf_to_gguf.py --bigendian` (`scripts/convert_granite_bigendian.sh` does this; Q4_0, Q4_K, Q5_K, Q6_K and Q8_0 have s390x
+  SIMD paths). See the [s390x build notes](https://github.com/ggml-org/llama.cpp/blob/master/docs/build-s390x.md) and [docs/vm_runbook.md](docs/vm_runbook.md).
+- The sgp4 package has no s390x wheel, so pip silently installs a pure-Python fallback (`sgp4.api.accelerated == False`)
+  that made the screener about 70x slower (939 s). The Dockerfile and bootstrap build the C extension with `--no-binary=sgp4` and check it.
+- The Telum accelerator is switched by the `NNPA_DEVICES` environment variable (`0` disables the zDNN rewrite, unset or `1` enables it;
+  set it before importing TensorFlow). `tf.config.list_physical_devices()` shows only CPU because the plugin rewrites graph ops
+  instead of registering a device. The evidence is the fused zDNN MatMul kernels in TensorFlow's log and a prediction difference of up to 1.5e-3 (DLFLOAT16).
+- Rules we followed: no pickles or model files copied between machines (retrain on the VM, move data as CSV or JSON), explicit byte
+  order for raw bytes (`<f8`), spawn-safe multiprocessing, `pathlib` only, UTF-8 and LF line endings.
+
 ## Repository map
 
 ```
@@ -278,8 +324,31 @@ orbitguard/optimise/     constrained Bayesian-optimisation burn search, verified
 orbitguard/api.py, live.py   Flask API: forecasts, replay, planning jobs, live catalogue, brief, audit, platform
 frontend/                React console (Encounters, Manoeuvre planning, Live catalogue + Ask, Validation + AI evidence, How it works)
 scripts/ deploy/ Dockerfile   LinuxONE bootstrap, evidence pipeline, sync/tunnel, systemd, container
-docs/                    MERGE.md, RESULTS.md, ACCURACY_REVIEW.md, phases/, porting.md, vm_runbook.md, validation notes
+tests/                   pytest suite, including the enforced data-boundary tests
+docs/                    results, reviews, runbook, phase notes, evidence, labs, VM captures
+video/                   scripts that build the demo video
 ```
+
+## Further documentation
+
+| Document | What it holds |
+| --- | --- |
+| [docs/JUDGING_GUIDE.md](docs/JUDGING_GUIDE.md) | Each judging criterion with the command or file that proves it |
+| [docs/RESULTS.md](docs/RESULTS.md) | Original LinuxONE deployment report (pre-merge pipeline) |
+| [docs/ACCURACY_REVIEW.md](docs/ACCURACY_REVIEW.md) | Review of the ESA scoring reproduction and forecast fixes, with fingerprints |
+| [docs/RECALL_IMPROVEMENT.md](docs/RECALL_IMPROVEMENT.md) | Work on improving high-risk recall |
+| [docs/DATA_BOUNDARIES.md](docs/DATA_BOUNDARIES.md) | Which code may read labels and which modules may import which, enforced by tests |
+| [docs/EVENT_REPLAY.md](docs/EVENT_REPLAY.md) | How historical events are replayed through the service |
+| [docs/breakup-validation.md](docs/breakup-validation.md) | Break-up model against real fragmentation events |
+| [docs/architecture-catalog.md](docs/architecture-catalog.md) | Architecture of the catalogue and consequence path ([SVG](docs/architecture-catalog.svg)) |
+| [docs/phases/README.md](docs/phases/README.md) | Per-phase build notes |
+| [docs/vm_runbook.md](docs/vm_runbook.md) | LinuxONE VM runbook, including what worked on the VM |
+| [docs/vm_capture/](docs/vm_capture/) | Terminal captures from the VM (platform, NNPA, Granite, CPACF) |
+| [docs/evidence/README.md](docs/evidence/README.md) | Review artefacts (accuracy, guard, physics, triage, runtime) |
+| [docs/labs/README.md](docs/labs/README.md) | Executed prerequisite-lab notebooks and screenshots |
+| [frontend/README.md](frontend/README.md) | Console build and structure |
+| [orbitguard/audit/README.md](orbitguard/audit/README.md) | Hash-chained audit log |
+| [video/README.md](video/README.md) | Demo video build |
 
 ## Credits and open-source resources
 
@@ -309,3 +378,12 @@ Console: React https://react.dev · TypeScript https://www.typescriptlang.org ·
 Recharts https://recharts.org · three.js https://threejs.org · d3-geo https://github.com/d3/d3-geo ·
 topojson-client https://github.com/topojson/topojson-client · world-atlas (Natural Earth) https://github.com/topojson/world-atlas ·
 Lucide https://lucide.dev · IBM Plex via Fontsource https://fontsource.org · Playwright (smoke tests) https://playwright.dev
+
+## Built during the event
+
+All code in this repository was written during the datathon window, 17-18 October 2026 (event code `SSF2026`); commit
+timestamps are the record. It combines two builds made by the team during the event, with both git histories preserved:
+a cascade-aware catalogue screener (real CelesTrak catalogue, consequence engine, super-spreader network, Granite on the box, audit chain,
+NNPA benchmark) and a strictly evaluated ESA forecasting and physics pipeline (NASA-validated Pc, synthetic planner with abstention, React
+console). The combined screener applies the validated all-object Pc rule to real SGP4 states, and the Act / Wait / Monitor decision layer
+runs beside the ESA forecast through the sealed-label evaluation path.

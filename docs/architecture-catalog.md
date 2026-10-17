@@ -1,6 +1,6 @@
 # Architecture
 
-![Architecture flowchart](architecture.svg)
+![Architecture flowchart](architecture-catalog.svg)
 
 Data flows left to right. Everything inside the blue box runs on the IBM LinuxONE (s390x) Community Cloud VM, in a container. Nothing leaves the box.
 

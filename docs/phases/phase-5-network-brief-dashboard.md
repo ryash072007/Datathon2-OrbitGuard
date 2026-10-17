@@ -43,7 +43,7 @@ LLM_BACKEND=llamacpp LLM_MODEL_PATH=models/llm/granite-3.3-2b-instruct-Q4_K_M.gg
 ```
 The dashboard serves on port 8080. `LLM_BACKEND` can be `template`, `llamacpp`, or an OpenAI-compatible API.
 
-Code: [orbitguard/network/](../../orbitguard/network/), [orbitguard/brief/](../../orbitguard/brief/), [legacy/flask_dashboard/](../../legacy/flask_dashboard/).
+Code: [orbitguard/network/](../../orbitguard/network/), [orbitguard/brief/](../../orbitguard/brief/).
 
 ## Limits and honest caveats
 - Mass values are assumptions, so scores are a ranking aid, not a measurement.
