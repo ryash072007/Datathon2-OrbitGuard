@@ -116,7 +116,10 @@ def test_exposure_positive_for_sat_inside_cloud():
 
 def test_pc_isotropic():
     sigma, hbr = 1.0, 20.0
-    assert abs(pc_isotropic(0.0, sigma, hbr) - (0.02**2) / (2 * sigma**2)) < 1e-15
+    # exact disk integral: 1 - exp(-HBR^2 / (2 sigma^2)) at zero miss; the small-HBR form agrees to ~1e-4 relative
+    exact = 1.0 - np.exp(-(0.02**2) / (2 * sigma**2))
+    assert abs(pc_isotropic(0.0, sigma, hbr) - exact) < 1e-9 * exact
+    assert abs(pc_isotropic(0.0, sigma, hbr) / ((0.02**2) / (2 * sigma**2)) - 1.0) < 1e-3
     vals = [pc_isotropic(d) for d in (0.0, 0.5, 1.0, 2.0, 5.0)]
     assert all(a > b for a, b in zip(vals, vals[1:]))
     assert pc_isotropic(0.0, 2.0, 20.0) < pc_isotropic(0.0, 1.0, 20.0)

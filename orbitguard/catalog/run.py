@@ -15,7 +15,9 @@ import pandas as pd
 
 from .burns import burn_grid
 from .catalog import data_dir, load_catalog, period_min_from_tle
+from .collision import PC_THRESHOLD, TLE_SIGMA_RTN_M
 from .parallel import default_workers
+from orbitguard.brief.facts import _clean
 from .screen import find_approach, prepare, run_burns
 
 
@@ -37,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--threat", type=int, default=None, help="force the threat NORAD id")
     ap.add_argument("--lam", type=float, default=0.05, help="m/s per unit criticality")
     ap.add_argument("--r-km", type=float, default=5.0, help="conjunction radius")
+    ap.add_argument("--pc-threshold", type=float, default=PC_THRESHOLD,
+                    help="per-encounter worst-case Pc acceptance threshold (default 1e-4)")
     ap.add_argument("--benchmark", action="store_true", help="time burn screening for 1,2,4..cpu_count workers")
     ap.add_argument("--refresh", action="store_true", help="force re-download of CelesTrak data")
     args = ap.parse_args(argv)
@@ -66,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
 
     burns = burn_grid(tca, period_min, earliest=now + timedelta(seconds=60))
     ctx = prepare(primary.tle, records, tca, burns, target_km=args.target_km, lam=args.lam,
-                  r_km=args.r_km, threat_norad=threat.norad)
+                  r_km=args.r_km, threat_norad=threat.norad, pc_threshold=args.pc_threshold)
     timings.update({k: v for k, v in ctx.timings.items()})
     print(f"Screening {len(burns)} burns vs {len(ctx.tles)} objects (baseline miss {ctx.baseline_miss_km:.2f} km, "
           f"{len(ctx.base_close)} baseline object(s) within {args.r_km:g} km)")
@@ -93,6 +97,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Manoeuvre needed at target {args.target_km:g} km: {needed}. Best burn: {best['burn_id']} "
           f"(dv {best['dv_mps']} m/s, miss {best['miss_km_threat']:.2f} km, new conj {best['new_conjunctions']}). "
           f"Along-track won: {along_won}. Feasible burns: {len(feas)}/{len(burn_df)}.")
+    pol = df.attrs["policies"]
+    print(f"Pc gate (worst case over 0.5-2x TLE sigma <= {args.pc_threshold:g}): {pol['status']}. {pol['reason']}")
+    for name in ("pair_only", "orbitguard"):
+        c = pol.get(name)
+        print(f"  {name:10s} " + ("none" if c is None else
+              f"{c['burn_id']} dv {c['dv_mps']} m/s, miss {c['miss_km_threat']:.2f} km, worst Pc {c['worst_pc']:.2e}"
+              + (" (introduces a secondary hazard)" if c.get("introduced_secondary_hazard") else "")))
 
     summary = {
         "primary": {"name": primary.name, "norad": primary.norad},
@@ -103,9 +114,11 @@ def main(argv: list[str] | None = None) -> int:
         "best_burn": {k: (v.item() if hasattr(v, "item") else v) for k, v in best.to_dict().items()},
         "best_burn_by_direction": best_by_dir, "along_track_won": along_won,
         "n_burns": len(burns), "n_objects_screened": len(ctx.tles), "timings": timings,
+        "pc_threshold": args.pc_threshold, "tle_sigma_rtn_m": list(TLE_SIGMA_RTN_M), "policies": pol,
+        "n_accepted": int(burn_df["accepted"].sum()), "pc_errors": df.attrs["pc_errors"],
         "csv": f"{stem}.csv",
     }
-    (out_dir / f"{stem}.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    (out_dir / f"{stem}.json").write_text(json.dumps(_clean(summary), indent=2, default=str), encoding="utf-8")
     print(f"Wrote {out_dir / (stem + '.csv')} and .json; timings: "
           + ", ".join(f"{k}={v:.2f}" for k, v in timings.items() if isinstance(v, float)))
 

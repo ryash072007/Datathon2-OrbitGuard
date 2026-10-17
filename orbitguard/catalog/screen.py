@@ -3,15 +3,23 @@
 For each candidate burn the primary's trajectory is manoeuvred by delta propagation (see
 ``propagate.py``), screened against the whole catalogue, and scored:
 
-* ``miss_km_threat``    minimum distance to the threat object within +-5 min of the TCA (1 s sampling)
+* ``miss_km_threat``    miss distance to the threat within +-5 min of the TCA: the closest 1 s SGP4 sample,
+                        refined to the rectilinear closest approach (encounter plane). Plain 1 s sampling
+                        overstates a miss by up to v_rel x 0.5 s (several km in LEO).
 * ``new_conjunctions``  non-threat objects that come within ``r_km`` after the burn but did NOT in the
                         no-burn baseline (matched per object, not per event time)
 * ``crit_penalty``      sum of those objects' criticality proxy (shell density, see ``catalog.py``)
 * ``score``             dv_mps + lam * crit_penalty   (lam in m/s per unit criticality)
 * ``feasible``          miss_km_threat >= target_km. The default 2 km reflects that TLE position error is
                         about 1 km (and no covariance is modelled), so a smaller miss is not trustworthy.
+* ``threat_pc`` / ``worst_other_pc``  collision probability of the threat encounter and of the worst other
+                        close approach (see ``collision.py``: NASA-validated encounter-plane integral, prescribed
+                        TLE covariance, worst case over 0.5x/1x/2x sigma).
+* ``accepted``          feasible AND every evaluated encounter has worst-case Pc <= ``pc_threshold`` AND no Pc
+                        evaluation failed (the OrbitGuard all-object rule).
 
-Rank: feasible first, then lowest score.
+Rank: accepted first, then feasible, then lowest score. ``recommend`` picks the lowest-delta-v accepted
+candidate, or abstains, and compares it with a pair-only policy that checks the threat alone.
 
 Pipeline: apogee/perigee prefilter (+-50 km) -> catalogue ephemeris computed ONCE on a 60 s grid and stored as
 an explicit '<f8' np.memmap (workers re-open it, nothing big is pickled) -> coarse screen (distance <
@@ -30,6 +38,7 @@ import numpy as np
 
 from .burns import Burn
 from .catalog import CatalogRecord, co_orbiting, compute_criticality, data_dir, record_from_tle
+from .collision import PC_THRESHOLD, encounter_pc
 from .parallel import map_tasks
 from .propagate import (as_utc, delta_on_grid, jd_fr, make_satrec, open_ephemeris, sgp4_grid, sgp4_track,
                         write_ephemeris_memmap)
@@ -39,7 +48,8 @@ BAND_KM = 50.0  # apogee/perigee prefilter margin
 POST_TCA_S = 12 * 3600
 THREAT_HALF_WINDOW_S = 300  # miss distance is the minimum within +-5 min of the TCA
 COLUMNS = ["burn_id", "direction", "dv_mps", "burn_time_utc", "miss_km_threat", "new_conjunctions",
-           "crit_penalty", "score", "feasible", "lead_periods", "analytic_seed"]
+           "crit_penalty", "score", "feasible", "threat_pc", "threat_pc_worst", "worst_other_pc",
+           "worst_other_norad", "worst_pc", "pc_valid", "accepted", "lead_periods", "analytic_seed"]
 
 
 # --------------------------------------------------------------------------- core scan
@@ -50,15 +60,36 @@ def _runs(flag_row: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(np.nonzero(d == 1)[0].tolist(), np.nonzero(d == -1)[0].tolist()))
 
 
+def primary_velocity(prim1: np.ndarray, i: int) -> np.ndarray:
+    """Velocity (km/s) of the (possibly manoeuvred) primary on the 1 s grid, by central difference."""
+    lo, hi = max(i - 1, 0), min(i + 1, len(prim1) - 1)
+    return (prim1[hi] - prim1[lo]) / float(hi - lo)
+
+
+def linear_miss(r_obj: np.ndarray, v_obj: np.ndarray, prim1: np.ndarray, i: int, sampled_km: float) -> float:
+    """Rectilinear closest-approach distance around 1 s sample ``i``; the sampled distance if TCA is not near i."""
+    rel = r_obj - prim1[i]
+    rv = v_obj - primary_velocity(prim1, i)
+    s2 = float(rv @ rv)
+    if not s2 > 0:
+        return sampled_km
+    tau = -float(rel @ rv) / s2
+    if abs(tau) > 1.0:  # closest approach outside this sample's neighbourhood (window edge)
+        return sampled_km
+    return min(sampled_km, float(np.linalg.norm(rel + tau * rv)))
+
+
 def _refine(sat, jd1, fr1, prim1, ka: int, kb: int) -> tuple[float, int]:
-    """Min distance (km) and its index on the 1 s grid for grid samples ka..kb (dense 1 s SGP4)."""
+    """Miss distance (km) and its 1 s grid index for grid samples ka..kb (dense 1 s SGP4, then linear TCA)."""
     a1, b1 = ka * GRID_S, kb * GRID_S
-    e, r, _ = sat.sgp4_array(jd1[a1:b1 + 1], fr1[a1:b1 + 1])
+    e, r, v = sat.sgp4_array(jd1[a1:b1 + 1], fr1[a1:b1 + 1])
     dist = np.linalg.norm(r - prim1[a1:b1 + 1], axis=1)
     dist[e != 0] = np.inf
     dist[np.isnan(dist)] = np.inf
     j = int(np.argmin(dist))
-    return float(dist[j]), a1 + j
+    if not math.isfinite(dist[j]):
+        return float(dist[j]), a1 + j
+    return linear_miss(r[j], v[j], prim1, a1 + j, float(dist[j])), a1 + j
 
 
 def scan(eph, prim60: np.ndarray, prim1: np.ndarray, jd1: np.ndarray, fr1: np.ndarray, sat_of,
@@ -130,7 +161,7 @@ def _screen_chunk(task: dict) -> list[dict]:
         return sats[i]
 
     lo, hi = _threat_window(t0, task["tca"], n_steps)
-    e, thr_r, _ = sat_of(threat_idx).sgp4_array(jd1[lo:hi + 1], fr1[lo:hi + 1])
+    e, thr_r, thr_v = sat_of(threat_idx).sgp4_array(jd1[lo:hi + 1], fr1[lo:hi + 1])
     if (e != 0).any():
         raise RuntimeError("SGP4 failed for the threat near TCA")
     grid_off = np.arange(n_steps) * float(GRID_S)
@@ -154,13 +185,37 @@ def _screen_chunk(task: dict) -> list[dict]:
             else:
                 prim1 = r1
             events = scan(eph, prim1[::GRID_S], prim1, jd1, fr1, sat_of, kb, r_km)
-            miss = float(np.linalg.norm(thr_r - prim1[lo:hi + 1], axis=1).min())
+            dthr = np.linalg.norm(thr_r - prim1[lo:hi + 1], axis=1)
+            j = int(np.argmin(dthr))
+            miss = linear_miss(thr_r[j], thr_v[j], prim1, lo + j, float(dthr[j]))
             new = [i for i in events if i != threat_idx and i not in base_close]
             penalty = float(sum(crit[i] for i in new))
+            errors: list[str] = []
+            try:
+                thr = encounter_pc(prim1[lo + j], primary_velocity(prim1, lo + j), thr_r[j], thr_v[j])
+            except ValueError as exc:
+                thr = None
+                errors.append(f"threat: {exc}")
+            others = []  # (worst-case Pc, object index) for every other close approach, old or new
+            for i, (_, t1) in events.items():
+                if i == threat_idx:
+                    continue
+                err, r_o, v_o = sat_of(i).sgp4(jd1[t1], fr1[t1])
+                try:
+                    if err:
+                        raise ValueError(f"SGP4 error code {err}")
+                    pc_o = encounter_pc(prim1[t1], primary_velocity(prim1, t1), np.array(r_o), np.array(v_o))
+                    others.append((pc_o["pc_worst"], i))
+                except ValueError as exc:
+                    errors.append(f"object {i}: {exc}")
+            worst_other = max(others, default=(0.0, None))
             rows.append({
                 "burn_id": b.burn_id, "direction": b.direction, "dv_mps": b.dv_mps,
                 "burn_time_utc": (t0 + timedelta(seconds=kb * GRID_S)).isoformat(),
                 "miss_km_threat": miss, "new_conjunctions": len(new), "crit_penalty": penalty,
+                "threat_pc": thr["pc"] if thr else None, "threat_pc_worst": thr["pc_worst"] if thr else None,
+                "worst_other_pc": worst_other[0], "_worst_other_idx": worst_other[1],
+                "pc_valid": not errors, "pc_errors": errors,
                 "lead_periods": b.lead_periods, "analytic_seed": b.analytic_seed,
                 "_events": sorted(events),
             })
@@ -187,6 +242,7 @@ class ScreenContext:
     target_km: float
     lam: float
     timings: dict = field(default_factory=dict)
+    pc_threshold: float = PC_THRESHOLD
 
     @property
     def threat_name(self) -> str:
@@ -206,7 +262,7 @@ def _as_record(item) -> tuple[CatalogRecord, bool]:
 
 def prepare(primary_tle: tuple[str, str], catalog: list, tca: datetime, burns: list[Burn], *,
             target_km: float = 2.0, lam: float = 0.05, r_km: float = 5.0, cache_dir: Path | None = None,
-            threat_norad: int | None = None) -> ScreenContext:
+            threat_norad: int | None = None, pc_threshold: float = PC_THRESHOLD) -> ScreenContext:
     """Prefilter, build the shared ephemeris memmap, pick the threat and compute the no-burn baseline."""
     timings: dict[str, float] = {}
     tca = as_utc(tca)
@@ -270,7 +326,7 @@ def prepare(primary_tle: tuple[str, str], catalog: list, tca: datetime, burns: l
 
     ctx = ScreenContext(primary_tle, tles, [r.norad for r in sel], [r.name for r in sel],
                         [r.crit for r in sel], t0, n_steps, tca, path, threat_idx, [], best[0],
-                        r_km, target_km, lam, timings)
+                        r_km, target_km, lam, timings, pc_threshold)
     base = _screen_chunk(_task(ctx, [Burn("none", "none", 0.0, t0, 0.0)]))[0]
     ctx.base_close = base["_events"]
     ctx.baseline_miss_km = base["miss_km_threat"]
@@ -299,20 +355,77 @@ def run_burns(ctx: ScreenContext, burns: list[Burn], workers: int = 1) -> "pd.Da
     df = pd.DataFrame(rows).drop(columns="_events")
     df["score"] = df["dv_mps"] + ctx.lam * df["crit_penalty"]
     df["feasible"] = df["miss_km_threat"] >= ctx.target_km
-    df = (df[COLUMNS].assign(_nf=~df["feasible"], _m=-df["miss_km_threat"])
-          .sort_values(["_nf", "score", "_m"]).drop(columns=["_nf", "_m"]).reset_index(drop=True))
+    for c in ("threat_pc", "threat_pc_worst", "worst_other_pc"):
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
+    df["worst_other_norad"] = [None if i is None or i != i else ctx.norads[int(i)] for i in df["_worst_other_idx"]]
+    df["worst_pc"] = df[["threat_pc_worst", "worst_other_pc"]].max(axis=1, skipna=False)
+    df["accepted"] = df["pc_valid"] & df["feasible"] & (df["worst_pc"] <= ctx.pc_threshold)
+    errors = {b: e for b, e in zip(df["burn_id"], df["pc_errors"]) if e}
+    df = (df[COLUMNS].assign(_na=~df["accepted"], _nf=~df["feasible"], _m=-df["miss_km_threat"])
+          .sort_values(["_na", "_nf", "score", "_m"]).drop(columns=["_na", "_nf", "_m"]).reset_index(drop=True))
     df.attrs["timings"] = dict(ctx.timings, burns_s=time.perf_counter() - t, workers=workers)
     df.attrs["threat"] = {"name": ctx.threat_name, "norad": ctx.threat_norad}
     df.attrs["baseline_miss_km"] = ctx.baseline_miss_km
+    df.attrs["pc_errors"] = errors
+    df.attrs["policies"] = recommend(df, ctx.pc_threshold)
     return df
+
+
+def _pick(df: "pd.DataFrame", mask, pc_col: str):
+    cand = df[mask & df["pc_valid"]]
+    if cand.empty:
+        return None
+    return cand.assign(_lead=-cand["lead_periods"]).sort_values(["dv_mps", pc_col, "_lead"]).iloc[0]
+
+
+def _row(r) -> dict | None:
+    if r is None:
+        return None
+    keys = ("burn_id", "direction", "dv_mps", "burn_time_utc", "lead_periods", "miss_km_threat", "threat_pc",
+            "threat_pc_worst", "worst_other_pc", "worst_other_norad", "worst_pc", "new_conjunctions", "accepted")
+    return {k: (r[k].item() if hasattr(r[k], "item") else r[k]) for k in keys}
+
+
+def recommend(df: "pd.DataFrame", pc_threshold: float = PC_THRESHOLD) -> dict:
+    """Compare three policies on the screened candidates (the same rule as the synthetic planner).
+
+    * ``no_action``   the no-burn baseline.
+    * ``pair_only``   lowest-delta-v candidate meeting the miss target with threat Pc <= threshold, judged on the
+                      threat alone (what a pair-wise check would pick).
+    * ``orbitguard``  lowest-delta-v ``accepted`` candidate: every encounter within the screening radius checked.
+    Ties break on the lower worst-case Pc, then the earlier burn (longer lead). If nothing is accepted the
+    recommendation is withheld, never relaxed.
+    """
+    base = df[df["direction"] == "none"]
+    no_action = base.iloc[0] if len(base) else None
+    pair = _pick(df, df["feasible"] & (df["threat_pc_worst"] <= pc_threshold), "threat_pc_worst")
+    og = _pick(df, df["accepted"], "worst_pc")
+    base_other = float(no_action["worst_other_pc"]) if no_action is not None else 0.0
+    out = {"pc_threshold": pc_threshold, "no_action": _row(no_action), "pair_only": _row(pair),
+           "orbitguard": _row(og)}
+    if pair is not None:
+        out["pair_only"]["introduced_secondary_hazard"] = bool(
+            pair["worst_other_pc"] > pc_threshold and base_other <= pc_threshold)
+    if og is None:
+        out["status"] = "abstained"
+        out["reason"] = "No acceptable manoeuvre in the evaluated candidate set: escalate to the operator."
+    elif og["direction"] == "none":
+        out["status"] = "no_action"
+        out["reason"] = "The no-burn trajectory already meets the miss target and every Pc check."
+    else:
+        out["status"] = "recommended"
+        out["reason"] = ("Lowest delta-v candidate meeting the miss target with every encounter at or below the "
+                         "Pc threshold at 0.5x, 1x and 2x the assumed position error.")
+    return out
 
 
 def screen(primary_tle: tuple[str, str], catalog: list, tca: datetime, burns: list[Burn], *,
            target_km: float = 2.0, lam: float = 0.05, r_km: float = 5.0, workers: int = 1,
-           cache_dir: Path | None = None, threat_norad: int | None = None) -> "pd.DataFrame":
+           cache_dir: Path | None = None, threat_norad: int | None = None,
+           pc_threshold: float = PC_THRESHOLD) -> "pd.DataFrame":
     """Interface function. ``catalog`` is a list of (line1, line2) tuples or CatalogRecord objects."""
     ctx = prepare(primary_tle, catalog, tca, burns, target_km=target_km, lam=lam, r_km=r_km,
-                  cache_dir=cache_dir, threat_norad=threat_norad)
+                  cache_dir=cache_dir, threat_norad=threat_norad, pc_threshold=pc_threshold)
     return run_burns(ctx, burns, workers)
 
 

@@ -31,7 +31,7 @@ def _print_event(res: dict) -> None:
         lo, mid, hi = res["alt_day1_p10_p50_p90_km"]
         print(f"Fragment altitude at day 0.5 (p10/p50/p90): {lo:.0f}/{mid:.0f}/{hi:.0f} km; "
               f"{100 * res['frac_within_100km_of_parent_alt_day1']:.0f}% within 100 km of the parent altitude")
-    print(f"Pc (sigma {res['params']['sigma_km']:g} km, HBR {res['params']['hbr_m']:g} m): {res['pc']:.3e}")
+    print(f"Pc ({res['pc_model']}, HBR {res['params']['hbr_m']:g} m): {res['pc']:.3e} (worst over 0.5-2x sigma {res['pc_worst_scale']:.3e})")
     print(f"Satellites put at risk (>=1 expected encounter within {res['params']['r_km']:g} km over "
           f"{res['params']['n_days']} d): {res['n_sats_ge1_encounter']} of {res['n_sats_considered']}; "
           f"any exposure (>0.01): {res['n_sats_any_exposure']}; total expected encounters "

@@ -17,11 +17,12 @@ SYSTEM_PROMPT = (
     "it appears in the JSON (the display strings), never compute, convert or invent numbers, and do not "
     "number your sections. Write markdown with exactly these six headings in this order: "
     "## Situation, ## Risk, ## Options, ## Consequence if no action, ## Recommendation, ## Uncertainties. "
-    "Situation: names, NORAD ids, closest-approach time, miss distance. Risk: collision probability and its "
-    "caveat. Options: one bullet per burn in 'burns' (id, direction, delta-v, miss, new close approaches) "
-    "then one trade-off sentence. Consequence: fragments and satellites exposed. Recommendation: the first "
-    "burn that meets the target with no new close approach, else say escalate. Uncertainties: two short "
-    "sentences. Maximum 220 words."
+    "Situation: names, NORAD ids, closest-approach time, miss distance. Risk: collision probability, its "
+    "worst case and its caveat. Options: one bullet per burn in 'burns' (id, direction, delta-v, miss, new close "
+    "approaches, worst-case Pc) then one trade-off sentence. Consequence: fragments and satellites exposed. "
+    "Recommendation: restate 'recommendation' exactly (if its status is abstained, say escalate; never pick a "
+    "different burn), and if 'pair_only_comparison' shows a secondary hazard, say so in one sentence. "
+    "Uncertainties: two short sentences. Maximum 230 words."
 )
 
 
@@ -38,12 +39,24 @@ def llm_view(facts: dict) -> dict:
         "primary": f"{p.get('name')} (NORAD {p.get('norad')})", "threat": f"{t.get('name')} (NORAD {t.get('norad')})",
         "closest_approach_utc": ev.get("tca_utc"), "miss_km": _f(ev.get("miss_km"), 2),
         "collision_probability": f"{risk['live_pc']:.1e}" if risk.get("live_pc") is not None else None,
+        "collision_probability_worst_case": f"{risk['live_pc_worst']:.1e}" if risk.get("live_pc_worst") is not None else None,
         "probability_caveat": risk.get("pc_note"),
         "no_burn_miss_km": _f(burns.get("baseline_miss_km"), 2), "target_miss_km": _f(burns.get("target_km"), 0),
         "burns": [{"id": b.get("burn_id"), "direction": b.get("direction"), "delta_v_m_per_s": _f(b.get("dv_mps"), 2),
                    "miss_km": _f(b.get("miss_km_threat"), 1), "new_close_approaches": b.get("new_conjunctions"),
-                   "meets_target": "yes" if b.get("feasible") else "no"} for b in burns.get("top", [])[:3]],
+                   "meets_target": "yes" if b.get("feasible") else "no",
+                   "worst_case_pc": f"{b['worst_pc']:.1e}" if b.get("worst_pc") is not None else None}
+                  for b in burns.get("top", [])[:3]],
     }
+    pol = burns.get("policies") or {}
+    if pol.get("status"):
+        og, pair = pol.get("orbitguard") or {}, pol.get("pair_only") or {}
+        view["recommendation"] = {"status": pol["status"], "burn": og.get("burn_id"),
+                                  "delta_v_m_per_s": _f(og.get("dv_mps"), 2) if og else None,
+                                  "pc_threshold": f"{pol['pc_threshold']:.0e}", "reason": pol.get("reason")}
+        if pair.get("introduced_secondary_hazard"):
+            view["pair_only_comparison"] = {"burn": pair.get("burn_id"), "other_object_norad": pair.get("worst_other_norad"),
+                                            "other_object_pc": f"{pair['worst_other_pc']:.1e}"}
     if cons:
         view["consequence"] = {
             "catastrophic": "yes" if cons.get("catastrophic") else "no",

@@ -15,7 +15,9 @@ from .breakup import generate_fragments
 from .cloud import build_density, positions_at, to_orbits
 from .exposure import compute_exposure, summarise
 from .objects import ASSUMPTIONS, object_mass_kg, object_type
-from .pc import expected_harm, pc_isotropic
+from orbitguard.catalog.collision import TLE_SIGMA_RTN_M, encounter_pc
+
+from .pc import expected_harm
 
 LEO_PERIGEE_KM = 2000.0
 
@@ -71,7 +73,8 @@ def assess(primary: CatalogRecord, threat: CatalogRecord, tca: datetime, miss_km
     tim["exposure_s"] = time.perf_counter() - t
     summ = summarise(sats, e_s)
 
-    pc = pc_isotropic(miss_km, p.sigma_km, p.hbr_m)
+    enc = encounter_pc(r1, v1, r2, v2, hbr_m=p.hbr_m)
+    pc = enc["pc"]
     n_surv = len(orb.a)
     return {
         "primary": {"name": primary.name, "norad": primary.norad, "type": object_type(primary), "mass_kg": m1},
@@ -85,7 +88,10 @@ def assess(primary: CatalogRecord, threat: CatalogRecord, tca: datetime, miss_km
         "survivors_sampled": n_surv,
         "alt_day1_p10_p50_p90_km": [float(x) for x in np.percentile(alt_d1, [10, 50, 90])] if len(alt_d1) else [],
         "frac_within_100km_of_parent_alt_day1": float(np.mean(np.abs(alt_d1 - parent_alt) < 100.0)) if len(alt_d1) else 0.0,
-        "pc": pc, "n_sats_any_exposure": summ["n_sats_any_exposure"], "n_sats_ge1_encounter": summ["n_sats_ge1_encounter"],
+        "pc": pc, "pc_worst_scale": enc["pc_worst"], "pc_by_scale": enc["by_scale"],
+        "pc_model": "encounter-plane Gaussian (NASA CARA-validated), TLE RTN sigma "
+                    + "/".join(f"{s:g}" for s in TLE_SIGMA_RTN_M) + " m per object",
+        "n_sats_any_exposure": summ["n_sats_any_exposure"], "n_sats_ge1_encounter": summ["n_sats_ge1_encounter"],
         "total_expected_encounters": summ["total_expected_encounters"],
         "expected_harm": expected_harm(pc, summ["total_expected_encounters"]),
         "top_satellites": summ["top_satellites"], "exposed_by_constellation": summ["exposed_by_constellation"],

@@ -11,8 +11,9 @@ def _burn_line(b: dict, rank: int) -> str:
     conj = ("creates no new close approach" if not b.get("new_conjunctions")
             else f"creates {b['new_conjunctions']} new close approach(es)")
     ok = "meets the miss target" if b.get("feasible") else "does not meet the miss target"
+    pc = f"; worst-case Pc {b['worst_pc']:.1e}" if b.get("worst_pc") is not None else ""
     return (f"{rank}. {b['burn_id']}: {where} burn, {b['dv_mps']:g} m/s{lead}. Miss {b['miss_km_threat']:.1f} km; "
-            f"{conj}; {ok}.")
+            f"{conj}; {ok}{pc}.")
 
 
 def render_template(facts: dict) -> str:
@@ -31,8 +32,11 @@ def render_template(facts: dict) -> str:
 
     lines.append("## Risk")
     if risk.get("live_pc") is not None:
-        lines.append(f"Estimated collision probability from public orbit data: {risk['live_pc']:.1e}. "
-                     f"This assumes an isotropic position error, so treat it as a rough indicator.")
+        worst = (f" (worst case over 0.5x to 2x the assumed error: {risk['live_pc_worst']:.1e})"
+                 if risk.get("live_pc_worst") is not None else "")
+        lines.append(f"Estimated collision probability from public orbit data: {risk['live_pc']:.1e}{worst}. "
+                     f"Public orbit data has no covariance, so the position error is assumed; treat it as a "
+                     f"screening indicator.")
     dec = risk.get("decision")
     if dec and "action" in dec:
         lines.append(f"Decision-layer demo ({dec['label']}, ESA event {dec['cdm_event_id']}, not this "
@@ -79,7 +83,23 @@ def render_template(facts: dict) -> str:
     lines.append("")
 
     lines.append("## Recommendation")
-    if not top:
+    pol = burns.get("policies")
+    if pol and pol.get("status"):
+        og, pair, thr = pol.get("orbitguard"), pol.get("pair_only"), pol.get("pc_threshold")
+        if pol["status"] == "recommended" and og:
+            lines.append(f"Consider {og['burn_id']}: the lowest delta-v option ({og['dv_mps']:g} m/s) that meets the "
+                         f"miss target with every screened encounter at or below Pc {thr:.0e}, even at twice the "
+                         f"assumed position error. The operator decides whether to execute.")
+        elif pol["status"] == "no_action":
+            lines.append("No burn is needed: the current trajectory meets the miss target and every Pc check. "
+                         "Continue monitoring and refresh with the next orbit update.")
+        else:
+            lines.append("No screened burn passes every check, so no manoeuvre is recommended. Escalate to the "
+                         "flight dynamics team before committing fuel.")
+        if pair and pair.get("introduced_secondary_hazard"):
+            lines.append(f"A pair-only check would choose {pair['burn_id']}, which pushes another object "
+                         f"(NORAD {pair['worst_other_norad']}) to Pc {pair['worst_other_pc']:.1e}.")
+    elif not top:
         lines.append("Escalate to the flight dynamics team for manual analysis.")
     elif burns.get("baseline_miss_km", 0) >= burns.get("target_km", 0):
         lines.append("The predicted miss already exceeds the target, so continue monitoring and refresh with "

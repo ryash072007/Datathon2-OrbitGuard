@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
+from orbitguard.catalog.collision import TLE_SIGMA_RTN_M
 from orbitguard.consequence.event import Params, assess
 from orbitguard.consequence.objects import ASSUMPTIONS, object_mass_kg, object_type
 from orbitguard.catalog.burns import burn_grid
@@ -110,7 +111,9 @@ def collect_facts(primary_norad: int, threat_norad: int | None = None, cdm_event
     top = [{"burn_id": r.burn_id, "direction": r.direction, "dv_mps": r.dv_mps,
             "burn_time_utc": str(r.burn_time_utc), "lead_periods": r.lead_periods,
             "miss_km_threat": r.miss_km_threat, "new_conjunctions": int(r.new_conjunctions),
-            "feasible": bool(r.feasible), "along_track": bool(r.analytic_seed), "score": r.score}
+            "feasible": bool(r.feasible), "along_track": bool(r.analytic_seed), "score": r.score,
+            "threat_pc": r.threat_pc, "worst_pc": r.worst_pc, "worst_other_norad": r.worst_other_norad,
+            "accepted": bool(r.accepted)}
            for r in bdf.head(N_TOP_BURNS).itertuples()]
 
     t = time.perf_counter()
@@ -124,7 +127,8 @@ def collect_facts(primary_norad: int, threat_norad: int | None = None, cdm_event
     cons["top_satellites"] = [{"name": s["name"], "expected_encounters": s["expected_encounters"]}
                               for s in res["top_satellites"][:3]]
     cons["assumptions"] = {"min_fragment_cm": MIN_FRAGMENT_CM, "horizon_days": p["n_days"],
-                           "encounter_radius_km": p["r_km"], "sigma_km": p["sigma_km"], "hbr_m": p["hbr_m"],
+                           "encounter_radius_km": p["r_km"], "tle_sigma_rtn_m": list(TLE_SIGMA_RTN_M),
+                           "hbr_m": p["hbr_m"],
                            "mass_note": ASSUMPTIONS["note"]}
 
     facts = {
@@ -134,10 +138,13 @@ def collect_facts(primary_norad: int, threat_norad: int | None = None, cdm_event
                   "threat": {"name": threat.name, "norad": threat.norad, "type": object_type(threat),
                              "mass_kg": object_mass_kg(threat)},
                   "tca_utc": tca.isoformat(), "miss_km": found["miss_km"], "search_window_days": days},
-        "risk": {"live_pc": res["pc"], "pc_note": "isotropic TLE position error, no covariance",
-                 "decision": None},
+        "risk": {"live_pc": res["pc"], "live_pc_worst": res["pc_worst_scale"],
+                 "pc_note": "encounter-plane Gaussian with assumed TLE errors (no published covariance); "
+                            "worst case over 0.5x-2x sigma", "decision": None},
         "burns": {"baseline_miss_km": ctx.baseline_miss_km, "target_km": target_km, "n_screened": len(bdf),
-                  "n_feasible": int(bdf["feasible"].sum()), "n_objects_screened": len(ctx.tles), "top": top},
+                  "n_feasible": int(bdf["feasible"].sum()), "n_accepted": int(bdf["accepted"].sum()),
+                  "pc_threshold": ctx.pc_threshold, "n_objects_screened": len(ctx.tles), "top": top,
+                  "policies": df.attrs["policies"]},
         "consequence": cons,
         "network": network_facts(primary.norad, threat.norad),
         "timings_s": tim,

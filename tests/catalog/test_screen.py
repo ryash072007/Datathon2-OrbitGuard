@@ -97,15 +97,25 @@ def test_screen_finds_synthetic_approach_and_baseline_has_no_new_conjunctions(tm
     offs = (tca - ctx.t0).total_seconds() + np.arange(-300.0, 301.0)
     rp, _ = sgp4_track(sat, ctx.t0, offs)
     ro, _ = sgp4_track(make_satrec(*near), ctx.t0, offs)
-    brute = np.linalg.norm(rp - ro, axis=1).min()
-    assert abs(ctx.baseline_miss_km - brute) < 1e-6
+    d1 = np.linalg.norm(rp - ro, axis=1)
+    brute = d1.min()
+    # 1 ms brute force around the best 1 s sample: the true miss that the linear-TCA refinement must recover
+    fine = offs[int(np.argmin(d1))] + np.arange(-1.0, 1.0, 0.001)
+    true_miss = np.linalg.norm(sgp4_track(sat, ctx.t0, fine)[0] - sgp4_track(make_satrec(*near), ctx.t0, fine)[0],
+                               axis=1).min()
+    assert true_miss <= brute + 1e-9
+    assert abs(ctx.baseline_miss_km - true_miss) < 0.01  # within 10 m
     assert 5.0 < brute < 20.0 and ctx.threat_idx in ctx.base_close
     df = run_burns(ctx, burns, workers=1)
     base = df[df["direction"] == "none"].iloc[0]
-    assert base["new_conjunctions"] == 0 and abs(base["miss_km_threat"] - brute) < 1e-6
+    assert base["new_conjunctions"] == 0 and abs(base["miss_km_threat"] - ctx.baseline_miss_km) < 1e-9
     assert set(["burn_id", "direction", "dv_mps", "burn_time_utc", "miss_km_threat", "new_conjunctions",
-                "crit_penalty", "score", "feasible"]) <= set(df.columns)
+                "crit_penalty", "score", "feasible", "threat_pc", "worst_pc", "accepted"]) <= set(df.columns)
     assert df["feasible"].iloc[0]  # feasible burns are ranked first
+    # a ~10 km miss under ~1 km TLE errors is far below the 1e-4 Pc threshold, so feasible == accepted here
+    assert (df["accepted"] == df["feasible"]).all() and (df["threat_pc"] < 1e-4).all()
+    pol = df.attrs["policies"]
+    assert pol["status"] in {"no_action", "recommended"} and pol["orbitguard"]["accepted"]
 
 
 def test_burn_grid_shape():
