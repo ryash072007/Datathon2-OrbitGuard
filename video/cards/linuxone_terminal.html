@@ -1,0 +1,78 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.win{position:absolute;left:150px;top:90px;width:1620px;height:900px;border-radius:18px;background:rgba(8,14,27,.94);border:1px solid var(--line2);
+ box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column}
+.bar{height:62px;flex:none;display:flex;align-items:center;padding:0 36px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:10px}.dots i{width:16px;height:16px;border-radius:50%;background:var(--line2)}
+.dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+.ttl{flex:1;text-align:center;font:500 24px var(--mono);color:var(--mute);margin-right:70px}
+.body{flex:1;padding:36px 56px;font:400 29px/1.55 var(--mono);color:#cfe0f5;overflow:hidden;position:relative}
+.ln{white-space:pre-wrap;word-break:break-word;min-height:1.55em}
+.pr{color:var(--ok)} .pr b{color:var(--cyan);font-weight:500} .cmd{color:var(--text)}
+.out{color:#a9bddb} .note{color:var(--dim)} .elide{color:var(--dim)}
+.hl{color:var(--cyan);font-weight:700;text-shadow:0 0 14px rgba(56,214,245,.45)}
+.ok{color:var(--ok)} .good{color:var(--ok);font-weight:700}
+.cur{display:inline-block;width:.6em;height:1.1em;background:var(--cyan);vertical-align:-.18em;margin-left:2px}
+.badge{position:absolute;right:34px;bottom:22px;font:500 20px var(--mono);color:var(--dim)}
+</style>
+<canvas id="bg"></canvas><div class="vig"></div>
+<div class="win" id="win"><div class="bar"><div class="dots"><i></i><i></i><i></i></div><div class="ttl">linux1@linuxone — IBM z17 (LinuxONE)</div></div>
+<div class="body" id="body"></div></div>
+<script src="common.js"></script>
+<script>
+// Scenes are injected by build_cards.py as window.SCENES (real captured output only) and window.DUR.
+const bg=makeBg(document.getElementById('bg'),{seed:5,dim:.5});
+const body=document.getElementById('body');
+const PROMPT='<span class="pr">linux1@linuxone<span style="color:var(--dim)">:</span><b>~</b><span style="color:var(--dim)">$</span></span> ';
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function hi(s){
+  s=esc(s);
+  s=s.replace(/(s390x|Big Endian|9175|nnpa|\bbig\b)/g,'<span class="hl">$1</span>');
+  s=s.replace(/(=== [a-z_0-9]+: )(ok)/g,'$1<span class="ok">$2</span>');
+  s=s.replace(/(Best burn: [^.]*?new conj 0\))/g,'<span class="good">$1</span>');
+  s=s.replace(/(speedup= *[0-9.]+x)/g,'<span class="hl">$1</span>');
+  s=s.replace(/(datathon2:latest|jupyterlab-image-s390x)/g,'<span class="good">$1</span>');
+  return s;
+}
+// timeline
+const CPS=26, PRE=.55, POST=.4, LINE=.3, SCENE_GAP=.5;
+function build(){
+  const scenes=[];let t=0;
+  for(const sc of window.SCENES){
+    const s={start:t,items:[],end:0};let c=0;
+    for(const it of sc.items){
+      if(it.kind==='cmd'){c+=PRE;it.t0=c;it.t1=c+it.text.length/CPS;c=it.t1+POST}
+      else{it.t0=c;c+=LINE}
+      s.items.push(it);
+    }
+    s.natural=c+SCENE_GAP;s.hold=0;scenes.push(s);t+=s.natural;
+  }
+  const avail=window.DUR-.8;let nat=scenes.reduce((a,s)=>a+s.natural,0);
+  if(nat>avail){const k=avail/nat;for(const s of scenes){for(const it of s.items){it.t0*=k;if(it.t1!=null)it.t1*=k}s.natural*=k}}
+  else{const extra=(avail-nat)/scenes.length;for(const s of scenes)s.hold=extra}
+  let a=0;for(const s of scenes){s.start=a;s.len=s.natural+s.hold;a+=s.len}
+  return scenes;
+}
+const SC=build();
+window.render=function(t){
+  bg(t);
+  let sc=SC[SC.length-1];for(const s of SC){if(t<s.start+s.len){sc=s;break}}
+  const lt=t-sc.start;let html='';let lastVisible=null;
+  for(const it of sc.items){
+    if(lt<it.t0)break;
+    if(it.kind==='cmd'){
+      const n=Math.min(it.text.length,Math.floor((lt-it.t0)*(it.text.length/(it.t1-it.t0))));
+      html+=`<div class="ln cmd">${PROMPT}${esc(it.text.slice(0,n))}</div>`;lastVisible='cmd';
+    }else if(it.kind==='note'){html+=`<div class="ln note">${esc(it.text)}</div>`;lastVisible='note'}
+    else if(it.kind==='elide'){html+=`<div class="ln elide">…</div>`;lastVisible='out'}
+    else{html+=`<div class="ln out">${hi(it.text)}</div>`;lastVisible='out'}
+  }
+  const blink=(Math.floor(t*2)%2===0)||lastVisible==='cmd';
+  html+=`<div class="ln">${PROMPT}${blink?'<span class="cur"></span>':''}</div>`;
+  body.innerHTML=html;
+  // quick fade-in at scene start
+  const f=easeOut(seg(lt,0,.25));body.style.opacity=.25+.75*f;
+  document.body.style.opacity=1-easeIO(seg(t,window.DUR-.5,.5))*0; // fade handled by assembler
+};
+window.__ready=true;
+</script>

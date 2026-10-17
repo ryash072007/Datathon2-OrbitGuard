@@ -1,0 +1,13 @@
+{
+  "_doc": "Lower-third stat pills. shot = segment shot name (see vo_segments.json). cue = phrase from the narration text; the pill appears when the voice reaches it (position estimated by word count). 'at' (seconds after narration start) overrides cue. dur = seconds on screen. tone: cyan | ok | act.",
+  "callouts": [
+    {"shot": "replay",      "cue": "thirteen thousand",  "big": "13,154",         "label": "real ESA events",                          "tone": "cyan", "dur": 4.2},
+    {"shot": "replay",      "cue": "only twelve",        "big": "12 of 97",       "label": "teams beat the naive baseline",            "tone": "act",  "dur": 4.5},
+    {"shot": "decision",    "cue": "beats the baseline", "big": "0.680 vs 0.694", "label": "test score vs baseline (lower is better)", "tone": "ok",   "dur": 4.5},
+    {"shot": "dodge",       "cue": "a hundred and forty-four", "big": "144 × 6,762", "label": "burns × objects screened",            "tone": "cyan", "dur": 4.5},
+    {"shot": "dodge",       "cue": "twenty-two kilometres",    "big": "22.3 km clear",  "label": "0 new conjunctions",                       "tone": "ok",   "dur": 3.6},
+    {"shot": "impact_globe","cue": "Eleven thousand",    "big": "11,259",         "label": "fragments ≥10 cm",                         "tone": "act",  "dur": 3.4},
+    {"shot": "impact_globe","cue": "Nearly nine thousand","big": "8,943",         "label": "satellites at risk",                       "tone": "act",  "dur": 3.4},
+    {"shot": "slope_chart", "cue": "reshuffles more than half", "big": "11 of 20", "label": "events re-ranked",                       "tone": "cyan", "dur": 3.6}
+  ]
+}

@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.w{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+ background:repeating-linear-gradient(45deg,#0b1324 0 40px,#0e182c 40px 80px)}
+h1{font:600 96px var(--mono);color:var(--wait);margin:0;letter-spacing:-.02em}
+p{font:400 34px var(--ui);color:var(--mute);margin-top:24px}
+</style>
+<div class="w"><h1 id="t"></h1><p id="s"></p></div>
+<script>
+const q=new URLSearchParams(location.search);
+document.getElementById('t').textContent=q.get('text');document.getElementById('s').textContent=q.get('sub')||'placeholder slate - replace before publishing';
+</script>

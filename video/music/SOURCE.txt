@@ -1,0 +1,8 @@
+Track:    "Calm Ambient 2 (Synthwave 15k)"  (file: calm_ambient_2.mp3 = 002_Synthwave_15k.mp3, 208 s)
+Author:   cynicmusic / The Cynic Project  (cynicmusic.com, pixelsphere.org)
+Licence:  CC0 1.0 Universal (Public Domain Dedication) -- stated on the track page:
+          https://opengameart.org/content/calm-ambient-2-synthwave-15k
+          https://creativecommons.org/publicdomain/zero/1.0/
+Download: https://opengameart.org/sites/default/files/002_Synthwave_15k.mp3
+Collection: https://opengameart.org/content/cc0-calm-relaxing-music
+Verified 2026-10-17 from the page's own "License(s): CC0" field. Attribution not required (credit it in README anyway).

@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+html,body{background:transparent;width:auto;height:auto}
+#pill{display:inline-flex;align-items:center;gap:26px;margin:20px;padding:22px 40px 22px 32px;border-radius:20px;
+ background:rgba(8,14,27,.88);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.dot{width:14px;height:14px;border-radius:50%;background:var(--c);flex:none;margin-right:-8px}
+.big{font:600 62px/1 var(--mono);color:var(--c);letter-spacing:-.03em;white-space:nowrap}
+.lab{font:500 29px/1.25 var(--ui);color:var(--text);max-width:520px}
+</style>
+<div id="pill"><div class="dot"></div><div class="big" id="big"></div><div class="lab" id="lab"></div></div>
+<script>
+const q=new URLSearchParams(location.search);
+const tone={cyan:'#38d6f5',ok:'#3ddc97',act:'#ff5468'}[q.get('tone')||'cyan'];
+document.getElementById('pill').style.setProperty('--c',tone);
+document.getElementById('big').textContent=q.get('big');document.getElementById('lab').textContent=q.get('label');
+</script>
