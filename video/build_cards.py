@@ -95,10 +95,19 @@ def items_from(block: dict, patterns: list[str] | None = None, max_lines: int = 
     return items
 
 
-def terminal_scenes() -> list[dict]:
-    """Scenes built ONLY from genuine captured lines. Optional nnpa.txt / granite.txt are appended when present."""
+def terminal_scenes(dur: float = 26.0, text: str = "") -> list[dict]:
+    """3 scenes from genuine captured lines only, each timed to a cue phrase in the s09 narration.
+    (a) platform  (b) NNPA report table (nnpa.txt)  (c) Granite line (granite.txt).
+    Missing nnpa/granite files -> that scene is skipped. platform.txt/pipeline.txt remain available for extra scenes."""
+    lead = 0.3
+
+    def at(cue: str) -> float:
+        m = re.search(re.escape(cue), text, re.I)
+        if not m or not text:
+            return 0.0
+        return max(0.0, lead + len(text[:m.start()].split()) / len(text.split()) * dur - 0.5)
+
     plat = parse_capture(CAPTURE / "platform.txt")
-    pipe = parse_capture(CAPTURE / "pipeline.txt")
     by_cmd = {b["cmd"]: b for b in plat if b["cmd"]}
 
     def find(frag: str) -> dict:
@@ -107,33 +116,21 @@ def terminal_scenes() -> list[dict]:
                 return b
         raise SystemExit(f"platform.txt has no block for command containing {frag!r}")
 
-    sysinfo, lscpu = find("/proc/sysinfo"), find("lscpu")
-    nnpa, pyb, dock = find("cpuinfo"), find("sys.byteorder"), find("docker images")
-
-    scenes = [
-        {"items": items_from(sysinfo, [r"^s390x", r"^Type:"]) + items_from(lscpu, [r"Architecture", r"Byte Order", r"^CPU\(s\)", r"Machine type"])},
-        {"items": items_from(nnpa) + items_from(pyb) + items_from(dock)},
-    ]
-    # ---- HOOK: later captures (new files appear -> new scenes). Same format: "$ cmd" followed by real output.
-    for fname in ("nnpa.txt", "granite.txt"):
-        f = CAPTURE / fname
-        if f.exists():
-            items: list[dict] = []
-            for b in parse_capture(f):
-                items += items_from(b, max_lines=6)
-            if items:
-                scenes.append({"items": items[:14]})
-    # ---- pipeline run
-    lines = pipe[0]["lines"]
-    seen, keep = set(), []
-    for ln in lines:  # drop the duplicated "Manoeuvre needed" line
-        if ln in seen:
-            continue
-        seen.add(ln)
-        keep.append(ln)
-    items = [{"kind": "note", "text": "# datathon2 pipeline on the VM -- captured output"}]
-    items += [{"kind": "out", "text": ln} for ln in keep]
-    scenes.append({"items": items})
+    scenes = [{"at": 0.0, "items": items_from(find("/proc/sysinfo"), [r"^s390x", r"^Type:"])
+               + items_from(find("lscpu"), [r"Byte Order"]) + items_from(find("cpuinfo"))}]
+    f = CAPTURE / "nnpa.txt"
+    if f.exists():
+        blocks = parse_capture(f)
+        rep = [b for b in blocks if b["cmd"] and "report" in b["cmd"]]
+        if rep:
+            scenes.append({"at": at("accelerator"), "items": items_from(rep[0], max_lines=12)})
+    f = CAPTURE / "granite.txt"
+    if f.exists():
+        items: list[dict] = []
+        for b in parse_capture(f):
+            items += items_from(b, max_lines=4)
+        if items:
+            scenes.append({"at": at("Granite runs"), "items": items})
     return scenes
 
 
@@ -162,7 +159,7 @@ def build(force: bool = False) -> dict[str, Path]:
         "end_card": {"dur": round(vo["s10"]["dur"] + 2.0, 3), "query": {"dur": round(vo["s10"]["dur"] + 2.0, 3)}},
         "linuxone_terminal": {"dur": round(vo["s09"]["dur"], 3)},
     }
-    scenes = terminal_scenes()
+    scenes = terminal_scenes(vo["s09"]["dur"], next(s["text"] for s in segs if s["id"] == "s09"))
     jobs["linuxone_terminal"]["scenes"] = scenes
     result: dict[str, Path] = {}
     todo = []

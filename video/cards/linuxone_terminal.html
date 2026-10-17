@@ -30,27 +30,27 @@ function hi(s){
   s=s.replace(/(s390x|Big Endian|9175|nnpa|\bbig\b)/g,'<span class="hl">$1</span>');
   s=s.replace(/(=== [a-z_0-9]+: )(ok)/g,'$1<span class="ok">$2</span>');
   s=s.replace(/(Best burn: [^.]*?new conj 0\))/g,'<span class="good">$1</span>');
+  s=s.replace(/(2.67x)/g,'<span class="hl">$1</span>');
+  s=s.replace(/^( *1,000,000 .*)$/,'<span class="good">$1</span>');
   s=s.replace(/(speedup= *[0-9.]+x)/g,'<span class="hl">$1</span>');
   s=s.replace(/(datathon2:latest|jupyterlab-image-s390x)/g,'<span class="good">$1</span>');
   return s;
 }
 // timeline
-const CPS=26, PRE=.55, POST=.4, LINE=.3, SCENE_GAP=.5;
+const CPS=40, PRE=.3, POST=.25, LINE=.16;
 function build(){
-  const scenes=[];let t=0;
-  for(const sc of window.SCENES){
-    const s={start:t,items:[],end:0};let c=0;
+  const scenes=[];
+  window.SCENES.forEach((sc,i)=>{
+    const s={start:sc.at,items:sc.items};let c=0;
     for(const it of sc.items){
       if(it.kind==='cmd'){c+=PRE;it.t0=c;it.t1=c+it.text.length/CPS;c=it.t1+POST}
       else{it.t0=c;c+=LINE}
-      s.items.push(it);
     }
-    s.natural=c+SCENE_GAP;s.hold=0;scenes.push(s);t+=s.natural;
-  }
-  const avail=window.DUR-.8;let nat=scenes.reduce((a,s)=>a+s.natural,0);
-  if(nat>avail){const k=avail/nat;for(const s of scenes){for(const it of s.items){it.t0*=k;if(it.t1!=null)it.t1*=k}s.natural*=k}}
-  else{const extra=(avail-nat)/scenes.length;for(const s of scenes)s.hold=extra}
-  let a=0;for(const s of scenes){s.start=a;s.len=s.natural+s.hold;a+=s.len}
+    const nxt=i+1<window.SCENES.length?window.SCENES[i+1].at:window.DUR;
+    s.len=nxt-sc.at;
+    if(c>s.len-.3){const k=(s.len-.3)/c;for(const it of s.items){it.t0*=k;if(it.t1!=null)it.t1*=k}}
+    scenes.push(s);
+  });
   return scenes;
 }
 const SC=build();
@@ -71,7 +71,7 @@ window.render=function(t){
   html+=`<div class="ln">${PROMPT}${blink?'<span class="cur"></span>':''}</div>`;
   body.innerHTML=html;
   // quick fade-in at scene start
-  const f=easeOut(seg(lt,0,.25));body.style.opacity=.25+.75*f;
+  const f=easeOut(seg(lt,0,.2));body.style.opacity=.3+.7*f;
   document.body.style.opacity=1-easeIO(seg(t,window.DUR-.5,.5))*0; // fade handled by assembler
 };
 window.__ready=true;

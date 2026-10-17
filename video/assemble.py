@@ -172,7 +172,8 @@ def main() -> None:
         inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{c['dur']:.3f}", "-i", c["png"]]
         idx, D, S = n0 + j, c["dur"], c["at"]
         f.append(f"[{idx}:v]format=rgba,fade=t=in:st=0:d=0.35:alpha=1,fade=t=out:st={D - 0.35:.3f}:d=0.35:alpha=1,setpts=PTS-STARTPTS+{S:.3f}/TB[p{j}]")
-        f.append(f"[{prev}][p{j}]overlay=x=60:y='H-h-215+if(lt(t-{S:.3f},0.5),44*pow(1-(t-{S:.3f})/0.5,3),0)':"
+        xx, yy = ("W-w-40", "150") if c.get("pos") == "top-right" else ("60", "H-h-270")
+        f.append(f"[{prev}][p{j}]overlay=x={xx}:y='{yy}+if(lt(t-{S:.3f},0.5),44*pow(1-(t-{S:.3f})/0.5,3),0)':"
                  f"enable='between(t,{S:.3f},{S + D:.3f})':eof_action=pass[o{j}]")
         prev = f"o{j}"
     f.append(f"[{prev}]ass=captions.ass[vout]")
