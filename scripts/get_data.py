@@ -36,7 +36,9 @@ def extract() -> None:
         for info in z.infolist():
             if info.is_dir():
                 continue
-            if info.filename.startswith(WANTED_PREFIX) or info.filename == EXTRA:
+            # members sit under a top-level "Collision Avoidance Challenge - Dataset/" folder
+            name = info.filename.split("/", 1)[1] if "/" in info.filename else info.filename
+            if name.startswith(WANTED_PREFIX) or name == EXTRA:
                 dest = OUT / Path(info.filename).name
                 if dest.exists() and dest.stat().st_size == info.file_size:
                     print(f"[skip] {dest.name}")
