@@ -26,3 +26,8 @@ venv/
 *.key
 id_rsa*
 id_ed25519*
+
+# TTS voice-over tooling
+video/.venv-tts/
+video/out/
+video/.cache/

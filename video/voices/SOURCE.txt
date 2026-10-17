@@ -1,0 +1,4 @@
+ljspeech_ref.wav - LJ Speech dataset (Keith Ito), utterance LJ001-0001, single female reader (LibriVox).
+Licence: public domain. https://keithito.com/LJ-Speech-Dataset/
+Fetched via HF mirror https://huggingface.co/datasets/MikhailT/lj-speech (row 0, 9.7 s, 22.05 kHz).
+Credit in README: LJ Speech dataset, Keith Ito, public domain.
