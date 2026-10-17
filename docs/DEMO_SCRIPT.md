@@ -1,5 +1,7 @@
 # OrbitGuard: video script
 
+> **Superseded:** the current script, with motion-design cues and the proof bank, is [OrbitGuard_Video_Script.docx](OrbitGuard_Video_Script.docx). This file is the earlier, slower cut.
+
 **Length:** target 2:55, hard limit 3:00 (guidebook). **Narration:** about 400 words, so a calm pace with room to breathe.
 **Guidebook checklist:** the problem ✔ the data behind it ✔ the solution, demonstrated ✔ how it uses IBM Z: the tech stack,
 the LinuxONE instance and the model ✔. Title on the first and last card: `[Datathon2_IBM Z Datathon 2026 Project]`.
