@@ -44,7 +44,7 @@ section separates what was measured on LinuxONE from what was measured on a deve
   `orbitguard zai-fit && orbitguard zai-eval && orbitguard zai-bench`, `artifacts/zai/snapml_bench_*.json`. The result
   names its backend; a CPU-only run says CPU.
 - **Granite 3.3 2B on the box (Guardian converted the same way, evaluated).** Big-endian GGUFs in llama.cpp, no external AI API. Proof:
-  `docs/vm_capture/granite.txt`, `docs/porting.md`, `scripts/convert_granite_bigendian.sh`.
+  `docs/vm_capture/granite.txt`, `docs/vm_runbook.md`, `scripts/convert_granite_bigendian.sh`.
 - **Porting done properly.** sgp4 C extension built from source (pure Python was about 70x slower), explicit `<f8`
   byte order, spawn-safe multiprocessing, models retrained on the VM instead of copied. Proof: `scripts/bootstrap-linuxone.sh`,
   `orbitguard/catalog/`.
@@ -59,7 +59,7 @@ section separates what was measured on LinuxONE from what was measured on a deve
 - **The UI cannot invent a metric.** It reads artefacts and shows "missing". Proof: `frontend/src/AiEvidence.tsx`.
 - **Evaluation hygiene.** Sealed test labels opened only after the model is frozen, SHA-256 recorded before and
   after; features only from messages at least 48 hours before TCA. Proof: `orbitguard/ml/data.py`, `docs/ACCURACY_REVIEW.md`.
-- **Pitch.** The video script is `docs/DEMO_SCRIPT.md`, and every spoken number is shown on screen.
+- **Pitch.** The demo video is linked at the top of the README, and every spoken number is shown on screen.
 
 ## AI Innovation Excellence rubric
 
@@ -107,7 +107,7 @@ files; the API rejects forecast evidence whose fingerprint no longer matches.
 ## Notes on the earlier accuracy work
 
 - The ESA scoring is reproduced (loss 0.69396 on 2,167 held-out events). Details and fingerprints: [ACCURACY_REVIEW.md](ACCURACY_REVIEW.md).
-  The original deployment report is [RESULTS.md](RESULTS.md); it predates the merge, so don't conflate it with a new run.
+  The original deployment report is [RESULTS.md](RESULTS.md); it predates the combined build, so do not conflate it with a new run.
 - The forecast-floor fix repairs lost numerical information. The shrinkage method and the separate triage
   classifier are experimental, with intervals that cross zero or modest effects. The latest-risk baseline stays default.
 - Serialized models must be loaded in a matching environment. Retrain on the target machine rather than copying.

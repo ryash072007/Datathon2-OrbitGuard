@@ -49,7 +49,7 @@ Code: [orbitguard/network/](../../orbitguard/network/), [orbitguard/brief/](../.
 - Mass values are assumptions, so scores are a ranking aid, not a measurement.
 - The in-step closest approach assumes straight-line motion.
 - Granite sometimes numbers list items and can phrase uncertainty loosely. The guard checks numbers, not wording.
-- The LLM and dashboard have not yet run on the LinuxONE VM. On the VM the model must be converted to big-endian format (see [porting.md](../porting.md)).
+- The LLM and dashboard have not yet run on the LinuxONE VM. On the VM the model must be converted to big-endian format (see [vm_runbook.md](../vm_runbook.md)).
 
 ## What's next
 Phase 6: port to the LinuxONE VM, confirm the footer reads s390x / big, and capture evidence screenshots in `docs/evidence/`.
