@@ -1,0 +1,19 @@
+# data and artefacts
+data/
+models/
+*.zip
+*.pkl
+*.joblib
+
+# secrets
+.env
+.env.*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
