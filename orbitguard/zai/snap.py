@@ -133,9 +133,28 @@ def load_scorer(path: Path, tree_format: str, n_jobs: int | None = None) -> Scor
     return Scorer(model, got, tree_format)
 
 
+def _bench_prefers_zdnn() -> bool:
+    """True when the newest bench file records zDNN faster than CPU on the smallest batch (a live request is one row)."""
+    benches = sorted(ZAI_DIR.glob("snapml_bench_*.json"), key=lambda p: p.stat().st_mtime)
+    if not benches:
+        return True  # unmeasured host: try the accelerator, as before
+    rows = [r for r in json.loads(benches[-1].read_text()).get("table", []) if r.get("nnpa_status") == "ready"]
+    if not rows:
+        return False
+    smallest = min(rows, key=lambda r: r["rows"])
+    return float(smallest.get("speedup") or 0.0) > 1.0
+
+
 def load_best_scorer(path: Path = MODEL_PATH) -> Scorer:
-    """zDNN when the host reports NNPA and the import succeeds, else CPU."""
-    if nnpa_in_cpuinfo():
+    """The faster measured path: zDNN only if this host's bench shows it beating CPU at small batch sizes.
+
+    On the z17 Community Cloud VM (3 vCPUs) Snap ML's compressed CPU trees were faster than zdnn_tensors at every
+    size, with identical predictions, so the live second opinion uses CPU there. SNAPML_TREE_FORMAT overrides.
+    """
+    forced = os.environ.get("SNAPML_TREE_FORMAT")
+    if forced:
+        return load_scorer(path, forced)
+    if nnpa_in_cpuinfo() and _bench_prefers_zdnn():
         try:
             return load_scorer(path, "zdnn_tensors")
         except RuntimeError as exc:
