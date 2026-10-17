@@ -23,6 +23,10 @@ RUN set -e; if python -c "import numpy, pandas, sklearn, scipy" 2>/dev/null; the
     else \
         pip install --no-cache-dir -r requirements.txt; \
     fi; \
+    # sgp4 ships no s390x wheel, so pip picks the pure-Python fallback (~70x slower).
+    # Build its C extension from source; fail the build if acceleration is still off.
+    pip install --no-cache-dir --force-reinstall --no-deps --no-binary=sgp4 sgp4; \
+    python -c "from sgp4.api import accelerated; assert accelerated, 'sgp4 C extension not built'"; \
     if [ "$INSTALL_LLAMA" = "1" ] && ! python -c "import llama_cpp" 2>/dev/null; then \
         pip install --no-cache-dir llama-cpp-python; \
     fi

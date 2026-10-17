@@ -44,6 +44,14 @@ if missing:
     subprocess.check_call([sys.executable, "-m", "pip", "install", *missing])
 else:
     print("nothing to install: all requirements already present")
+# sgp4 has no s390x wheel: the pure-Python fallback is ~70x slower, so build the C extension.
+from importlib import reload
+import sgp4.api
+if not sgp4.api.accelerated:
+    print("sgp4 not accelerated: rebuilding from source")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", "--no-deps",
+                           "--no-binary=sgp4", "sgp4"])
+    print("re-run to confirm: python -c 'from sgp4.api import accelerated; print(accelerated)'")
 print(f"\n{'package':<14}{'pinned':<14}installed")
 for line, name in reqs():
     pin = line.split("==")[1] if "==" in line else "(any)"

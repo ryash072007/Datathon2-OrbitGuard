@@ -59,3 +59,5 @@ The IBM labs weren't available to us, so we chose the stack ourselves: **IBM Gra
 - xgboost is only on the VM; our code uses scikit-learn `HistGradientBoostingRegressor` on both.
 - The VM image has torch, tensorflow, onnx and `llama_cpp_python`; Windows doesn't need them until Phase 3.
 - Timing numbers for the pitch come from the VM only.
+
+- **sgp4 on s390x:** there is no s390x wheel, so pip silently installs the pure-Python fallback (`sgp4.api.accelerated == False`), which made the screener ~70x slower on the VM (939 s). The Dockerfile and `vm_setup.sh` now build the C extension with `--no-binary=sgp4` and check it.
