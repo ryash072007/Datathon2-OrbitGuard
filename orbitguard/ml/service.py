@@ -12,7 +12,7 @@ from .data import digest
 
 class MLService:
     def __init__(self,root):
-        self.root=Path(root); self.base=self.root/'artifacts/ml'; self._model=None; self._metadata=None; self._events=None; self._predictions=None; self._decision=None
+        self.root=Path(root); self.base=self.root/'artifacts/ml'; self._model=None; self._metadata=None; self._events=None; self._predictions=None; self._decision=None; self._snap=None
 
     def _decision_layer(self, rows):
         # Act / Wait / Monitor from the decision layer (rules + calibrated P(high) + quantile interval).
@@ -28,6 +28,32 @@ class MLService:
         return {'status':'ready','action':d.action,'p_high':d.p_high,'predicted_log10_pc':d.predicted_risk,
                 'interval_log10_pc':list(d.interval),'interval_nominal':0.8,'reasons':list(d.reasons),
                 'thresholds':{'act':self._decision['t_act'],'wait':self._decision['t_wait']},'chosen':self._decision['chosen']}
+
+    def _attach_second_opinion(self, decision, rows):
+        # Snap ML tree ensemble (zDNN on Telum when present) as a second P(high). Never changes the action.
+        meta_path=self.root/'artifacts/zai/snapml_metadata.json'; model_path=self.root/'artifacts/zai/snapml_bmc.pmml'
+        if not (meta_path.exists() and model_path.exists()): return decision
+        from orbitguard.zai import snap
+        if self._snap is None:
+            try: self._snap=(snap.load_best_scorer(model_path),json.loads(meta_path.read_text()))
+            except RuntimeError as exc: self._snap=exc
+        if isinstance(self._snap,Exception):
+            decision['second_opinion']={'status':'unavailable','message':str(self._snap)}; return decision
+        scorer,meta=self._snap
+        try:
+            from orbitguard.decision.decision import build_table
+            u=rows[rows['time_to_tca']>=2]; tab=build_table(u.assign(event_id=0))
+            t0=time.perf_counter(); p=float(scorer.predict_proba(snap.featurize(tab,meta['train_medians']))[0]); ms=(time.perf_counter()-t0)*1000
+        except (KeyError,ValueError,TypeError) as exc:
+            decision['second_opinion']={'status':'unavailable','message':f'Needs the full ESA CDM schema ({type(exc).__name__}: {exc})'}; return decision
+        so={'p_high':p,'backend':scorer.backend,'latency_ms':ms,'agrees':None}
+        main_p=decision.get('p_high')
+        if main_p is not None:
+            so['agrees']=bool((p>=0.5)==(main_p>=0.5) or abs(p-main_p)<0.25)
+            if not so['agrees'] and isinstance(decision.get('reasons'),list):
+                decision['reasons'].append(f'Snap ML second opinion disagrees (p={p:.2f}); review manually')
+        decision['second_opinion']=so
+        return decision
 
     def _load_model(self):
         if self._model is None:
@@ -138,7 +164,7 @@ class MLService:
         if numeric_count<20: warnings.append('Sparse input features: supply the full ESA CDM schema for benchmark-comparable predictions.')
         if model['metadata']['selected_method']=='latest_baseline': warnings.append('Cross-validation selected the latest-risk baseline; learned challenger is shown in Evidence.')
         supplemental=self._supplemental_review(float(latest[0]),float(challenger[0]))
-        decision=self._decision_layer(rows)
+        decision=self._attach_second_opinion(self._decision_layer(rows),rows)
         return {'decision':decision,'event_id':str(ids[0]),'baseline_log10_pc':float(latest[0]),'forecast_log10_pc':float(pred[0]),'reported_log10_pc':float(latest[0]),'learned_forecast_log10_pc':float(challenger[0]),'learned_model_name':'gradient_boosted_residual','model_name':model['metadata']['selected_method'],'model_version':self._metadata['version'],'cutoff_days':2,'elapsed_ms':(time.perf_counter()-start)*1000,'warnings':warnings,'source':'ESA historical dataset','score_clipping_applied':False,'supplemental_review':supplemental}
 
     def evidence(self):

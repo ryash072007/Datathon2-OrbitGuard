@@ -210,13 +210,15 @@ Data and references:
 - Johnson et al., "NASA's new breakup model of EVOLVE 4.0" (2001): https://doi.org/10.1016/S0273-1177(01)00423-9
 - Along-track manoeuvre optimality (Bombardelli group): https://oa.upm.es/51461/
 - IBM Granite 3.3 2B Instruct: https://huggingface.co/ibm-granite/granite-3.3-2b-instruct · GGUF: https://huggingface.co/ibm-granite/granite-3.3-2b-instruct-GGUF
+- IBM Granite Guardian 3.2 3B-A800M (groundedness check on the brief and the Ask agent): https://huggingface.co/ibm-granite/granite-guardian-3.2-3b-a800m
 
 Python: NumPy https://numpy.org · pandas https://pandas.pydata.org · SciPy https://scipy.org ·
 scikit-learn https://scikit-learn.org · joblib https://joblib.readthedocs.io · threadpoolctl https://github.com/joblib/threadpoolctl ·
 sgp4 https://pypi.org/project/sgp4/ · Flask https://flask.palletsprojects.com · gunicorn https://gunicorn.org ·
 pytest https://pytest.org · llama.cpp https://github.com/ggml-org/llama.cpp (s390x notes: https://github.com/ggml-org/llama.cpp/blob/master/docs/build-s390x.md) ·
 llama-cpp-python https://github.com/abetlen/llama-cpp-python · TensorFlow https://www.tensorflow.org ·
-IBM zDNN plugin for TensorFlow https://pypi.org/project/ibm-zdnn-plugin/
+IBM zDNN plugin for TensorFlow https://pypi.org/project/ibm-zdnn-plugin/ ·
+IBM Snap ML https://snapml.readthedocs.io · https://pypi.org/project/snapml/
 
 Console: React https://react.dev · TypeScript https://www.typescriptlang.org · Vite https://vite.dev ·
 Recharts https://recharts.org · three.js https://threejs.org · d3-geo https://github.com/d3/d3-geo ·

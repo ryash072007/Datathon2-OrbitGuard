@@ -21,6 +21,9 @@ MODULE_COMMANDS = {
     "nnpa-bench": ("orbitguard.nnpa.bench", []),
     "nnpa-report": ("orbitguard.nnpa.report", []),
     "workload-eval": ("orbitguard.decision.workload", []),
+    "zai-fit": ("orbitguard.zai.snap", ["fit"]),
+    "zai-eval": ("orbitguard.zai.snap", ["eval"]),
+    "zai-bench": ("orbitguard.zai.bench", []),
 }
 
 

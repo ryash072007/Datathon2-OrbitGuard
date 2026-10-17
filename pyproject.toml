@@ -24,6 +24,8 @@ serve = ["gunicorn>=20,<24"]
 # Present in the LinuxONE Jupyter ML image; only needed for the Granite brief and the NNPA benchmark.
 llm = ["llama-cpp-python"]
 nnpa = ["tensorflow"]
+# IBM Snap ML second-opinion scorer (s390x wheels from 1.16.2, py3.12; zDNN tree inference on Telum).
+zai = ["snapml>=1.16.2"]
 
 [project.scripts]
 orbitguard = "orbitguard.__main__:main"
