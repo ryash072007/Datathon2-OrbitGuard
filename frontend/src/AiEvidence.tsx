@@ -25,6 +25,11 @@ function verdict(lo: unknown, hi: unknown, better: 'lower' | 'higher'): {text: s
   const good = better === 'lower' ? hi < 0 : lo > 0;
   return good ? {text: 'Significant improvement over the naive baseline (interval excludes 0)', tone: 'good'} : {text: 'Significantly worse than the naive baseline (interval excludes 0)', tone: 'bad'};
 }
+/** Tone for a difference interval where the null is 0; `lowerIsBetter` says which sign is good. */
+function diffTone(ci: unknown, lowerIsBetter: boolean): string {
+  if (!Array.isArray(ci) || !finite(ci[0]) || !finite(ci[1]) || (ci[0] <= 0 && ci[1] >= 0)) return 'muted';
+  return (ci[1] < 0) === lowerIsBetter ? 'good-text' : 'bad-text';
+}
 const toneClass = (tone: string) => tone === 'good' ? 'good-text' : tone === 'bad' ? 'bad-text' : 'muted';
 function score(x: unknown): number | undefined {
   if (finite(x)) return x;
@@ -117,8 +122,8 @@ function Workload({block}: {block?: Block}) {
     {keys.length > 0 && <div className="table-wrap"><table className="table compact">
       <thead><tr><th>Policy</th><th className="num">Alerts</th><th className="num">Caught (95% CI vs naive)</th><th className="num">False alerts (95% CI vs naive)</th></tr></thead>
       <tbody>{keys.map(k => {const b = boot[k]; return <tr key={k}><td>{POLICY_LABEL[k] || k}</td><td className="num">{number(pol[k].alerts, 0)}</td>
-        <td className="num">{number(pol[k].caught, 0)}{b && <div className="small muted">{finite(b.caught_difference?.point) ? `${b.caught_difference.point > 0 ? '+' : ''}${number(b.caught_difference.point, 0)}, ` : ''}{interval(b.caught_difference?.ci95, 0)}</div>}</td>
-        <td className="num">{number(pol[k].false_alerts, 0)}{b && <div className="small muted">{finite(b.false_alerts_difference?.point) ? `${b.false_alerts_difference.point > 0 ? '+' : ''}${number(b.false_alerts_difference.point, 0)}, ` : ''}{interval(b.false_alerts_difference?.ci95, 0)}</div>}</td></tr>;})}</tbody>
+        <td className="num">{number(pol[k].caught, 0)}{b && <div className={`small ${diffTone(b.caught_difference?.ci95, false)}`}>{finite(b.caught_difference?.point) ? `${b.caught_difference.point > 0 ? '+' : ''}${number(b.caught_difference.point, 0)}, ` : ''}{interval(b.caught_difference?.ci95, 0)}</div>}</td>
+        <td className="num">{number(pol[k].false_alerts, 0)}{b && <div className={`small ${diffTone(b.false_alerts_difference?.ci95, true)}`}>{finite(b.false_alerts_difference?.point) ? `${b.false_alerts_difference.point > 0 ? '+' : ''}${number(b.false_alerts_difference.point, 0)}, ` : ''}{interval(b.false_alerts_difference?.ci95, 0)}</div>}</td></tr>;})}</tbody>
     </table></div>}
     {rows.length > 1 && <div>
       <p className="small muted">High-risk events caught when reviewing only the top K alerts by each score ({number(d.n_high_risk_test_for_ranking, 0)} high-risk in total).</p>
@@ -133,6 +138,7 @@ function Workload({block}: {block?: Block}) {
         </LineChart>
       </ResponsiveContainer>
     </div>}
+    <p className="footnote">Green or red differences have an interval that excludes 0, so they are real; grey ones include 0, so no difference is established.</p>
     <p className="footnote">ESA test events over-represent high-risk cases, so these counts do not estimate operational volumes.</p>
   </EvCard>;
 }
@@ -146,8 +152,9 @@ function Telum({bench, snapml, nnpa}: {bench?: Block, snapml?: Block, nnpa?: Blo
   const maxDiff = diffs.length ? Math.max(...diffs) : zEv?.max_abs_diff_vs_cpu;
   const engaged = d.nnpa_available;
   return <EvCard title="IBM Snap ML on Telum" block={bench} cmd={CMD.snapml_bench}>
-    <p className="small">zDNN engaged: {engaged === true ? <Status ok>Yes</Status> : engaged === false ? <Status ok={false}>No{d.nnpa_unavailable_reason ? `: ${d.nnpa_unavailable_reason}` : ''}</Status> : '—'}
-      {d.status && d.status !== 'ready' && <span className="muted"> · benchmark status: {d.status}{d.reason ? ` (${d.reason})` : ''}</span>}</p>
+    {d.status && d.status !== 'ready' && <p className="small bad-text">Not measured on this machine{d.reason ? `: ${d.reason}` : ''}. No Telum speedup is claimed.</p>}
+    <p className="small">zDNN engaged: {engaged === true ? <Status ok>Yes</Status> : engaged === false ? <Status ok={false}>No{d.nnpa_unavailable_reason ? `: ${d.nnpa_unavailable_reason}` : ''}</Status> : <span className="muted">not measured</span>}
+      {d.status && d.status !== 'ready' && <span className="muted"> · benchmark status: {d.status}</span>}</p>
     {table.length > 0 && <div className="table-wrap"><table className="table compact">
       <thead><tr><th className="num">Rows</th><th className="num">CPU rows/s</th><th className="num">zDNN rows/s</th><th className="num">Speedup</th></tr></thead>
       <tbody>{table.map(r => <tr key={r.rows}><td className="num">{number(r.rows, 0)}</td><td className="num">{number(r.cpu_rows_per_s, 0)}</td><td className="num">{finite(r.nnpa_rows_per_s) ? number(r.nnpa_rows_per_s, 0) : r.nnpa_status || '—'}</td><td className="num">{finite(r.speedup) ? `${fixed(r.speedup, 2)}×` : '—'}</td></tr>)}</tbody>
@@ -160,6 +167,14 @@ function Telum({bench, snapml, nnpa}: {bench?: Block, snapml?: Block, nnpa?: Blo
 }
 
 // ---------------------------------------------------------------- (d) learned burn search
+function ratioTone(lo: unknown, hi: unknown): string {
+  if (!finite(lo) || !finite(hi) || (lo <= 1 && hi >= 1)) return 'muted';
+  return hi < 1 ? 'good-text' : 'bad-text';
+}
+function ratioWord(lo: unknown, hi: unknown): string {
+  if (!finite(lo) || !finite(hi)) return '';
+  return lo <= 1 && hi >= 1 ? ' · same as grid' : hi < 1 ? ' · cheaper' : ' · costlier';
+}
 const METHOD: Record<string, string> = {grid: 'Grid (reference)', bo: 'Learned search (Bayesian)', bo_warm: 'Learned search, seeded with grid', random: 'Random', random_log: 'Random (log-spaced)', random_warm: 'Random, seeded with grid', fine_grid: 'Finer grid'};
 function Burn({block}: {block?: Block}) {
   const d = block?.data || {};
@@ -170,12 +185,12 @@ function Burn({block}: {block?: Block}) {
   const extra = methods.reduce((n, m) => n + (Array.isArray(s[m].grid_abstains_method_finds) ? s[m].grid_abstains_method_finds.length : 0), 0);
   return <EvCard title="Learned burn search" block={block} cmd={CMD.optimise}>
     {specific ? <>
-      <p className="small muted">{number(d.scenarios, 0)} scenarios, {number(d.budget_evaluations, 0)} evaluations per method. Δv ratio is the method's Δv divided by the grid's, so below 1 means a cheaper burn (median, 95% CI).</p>
+      <p className="small muted">{number(d.scenarios, 0)} scenarios, {number(d.budget_evaluations, 0)} evaluations per method. Δv ratio is the method's Δv divided by the grid's, so below 1 means a cheaper burn (median, 95% CI). The null is 1: an interval that includes 1 means no difference from the grid.</p>
       <div className="table-wrap"><table className="table compact">
         <thead><tr><th>Method</th><th className="num">Δv ratio vs grid</th><th className="num">Better / tied / worse</th><th className="num">Found</th></tr></thead>
         <tbody>{methods.map(m => {const r = s[m].dv_ratio_vs_grid?.median_ci95 || {}; return <tr key={m}><td>{METHOD[m] || m}</td>
-          <td className="num">{fixed(r.median ?? s[m].dv_ratio_vs_grid?.mean, 3)}<div className="small muted">{interval([r.lo, r.hi])}</div></td>
-          <td className="num">{s[m].wins_vs_grid} / {s[m].ties_vs_grid} / {s[m].losses_vs_grid}</td><td className="num">{s[m].feasible_found}</td></tr>;})}</tbody>
+          <td className="num">{fixed(r.median ?? s[m].dv_ratio_vs_grid?.mean, 3)}<div className={`small ${ratioTone(r.lo, r.hi)}`}>{interval([r.lo, r.hi])}{ratioWord(r.lo, r.hi)}</div></td>
+          <td className="num">{s[m].wins_vs_grid} / {s[m].ties_vs_grid} / {s[m].losses_vs_grid}</td><td className="num">{s[m].feasible_found}{finite(d.scenarios) ? ` / ${number(d.scenarios, 0)}` : ''}</td></tr>;})}</tbody>
       </table></div>
       <p className="small">Abstention: {d.designed_impossible_all_abstain === true ? <Status ok>Every method declined all designed-impossible scenarios</Status> : d.designed_impossible_all_abstain === false ? <Status ok={false}>Some method proposed a burn where none exists</Status> : '—'}
         <span className="muted"> · grid and learned search disagree on whether a burn exists in {number(missed + extra, 0)} case(s).</span></p>
@@ -185,10 +200,39 @@ function Burn({block}: {block?: Block}) {
 }
 
 // ---------------------------------------------------------------- (e) guard evaluation
+type Rate = {k?: number, n?: number, rate?: number, wilson95?: unknown};
+const isRate = (v: unknown): v is Rate => !!v && typeof v === 'object' && finite((v as Json).rate);
+const GUARD_METHOD: Record<string, string> = {numeric_guard: 'Numeric check', guardian: 'Granite Guardian', combined: 'Both together'};
+const label = (k: string) => k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+const pct = (x: unknown) => finite(x) ? `${(x * 100).toFixed(0)}%` : '—';
+function RateCell({r}: {r?: Rate}) {
+  if (!isRate(r)) return <td className="num muted">—</td>;
+  return <td className="num">{pct(r.rate)}<div className="small muted">{finite(r.k) && finite(r.n) ? `${r.k} of ${r.n}` : ''}{Array.isArray(r.wilson95) ? ` (${pct(r.wilson95[0])} to ${pct(r.wilson95[1])})` : ''}</div></td>;
+}
+/** Renders whatever rows exist: results is {check: {category: {k, n, rate, wilson95}}}; columns come from the data. */
 function GuardEval({block}: {block?: Block}) {
+  const d = block?.data || {};
+  const res: Json = d.results && typeof d.results === 'object' && !Array.isArray(d.results) ? d.results : {};
+  const methods = Object.keys(res).filter(m => res[m] && typeof res[m] === 'object');
+  const cats = Array.from(new Set(methods.flatMap(m => Object.keys(res[m]).filter(c => isRate(res[m][c])))));
+  const types = Array.from(new Set(methods.flatMap(m => Object.keys(res[m]?.by_type || {}))));
+  const lat = d.guardian?.latency_ms;
   return <EvCard title="Guard evaluation" block={block} cmd={CMD.guard_eval}>
-    <p className="small muted">How often the checks on the written brief catch an invented number, and how often they wrongly flag a correct brief. Compares the numeric-only check, Granite Guardian, and both together.</p>
-    {block?.data && <Generic data={block.data}/>}
+    <p className="small muted">How often the checks on the written brief catch a deliberately corrupted brief, and how often they wrongly flag a correct one. Caught: higher is better. False flags: lower is better. Corruptions are synthetic edits of template briefs, so rates describe this test set only; intervals are 95% Wilson.</p>
+    {d.summary && <p className="finding">{d.summary}</p>}
+    {methods.length > 0 && cats.length > 0 ? <>
+      <div className="table-wrap"><table className="table compact">
+        <thead><tr><th>Check</th>{cats.map(c => <th key={c} className="num">{c.startsWith('false') ? `${label(c)} (lower is better)` : `Caught: ${label(c)}`}</th>)}</tr></thead>
+        <tbody>{methods.map(m => <tr key={m}><td>{GUARD_METHOD[m] || label(m)}</td>{cats.map(c => <RateCell key={c} r={res[m][c]}/>)}</tr>)}</tbody>
+      </table></div>
+      {types.length > 0 && <details className="raw"><summary>Detection by corruption type</summary>
+        <div className="table-wrap"><table className="table compact">
+          <thead><tr><th>Check</th>{types.map(t => <th key={t} className="num">{label(t)}</th>)}</tr></thead>
+          <tbody>{methods.map(m => <tr key={m}><td>{GUARD_METHOD[m] || label(m)}</td>{types.map(t => <RateCell key={t} r={res[m]?.by_type?.[t]}/>)}</tr>)}</tbody>
+        </table></div></details>}
+      {finite(lat?.p50) && finite(lat?.p95) && <p className="footnote">Guardian latency per brief: median {number(lat.p50 / 1000, 1)} s, 95th percentile {number(lat.p95 / 1000, 1)} s ({d.guardian?.model_file || 'model not recorded'}).</p>}
+      {Array.isArray(d.notes) && d.notes.length > 0 && <details className="raw"><summary>Notes</summary><ul className="small muted">{d.notes.map((n: unknown, i: number) => <li key={i}>{String(n)}</li>)}</ul></details>}
+    </> : block?.data && <Generic data={d}/>}
   </EvCard>;
 }
 

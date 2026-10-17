@@ -393,6 +393,10 @@ a { color: var(--accent-ink); }
 
 .ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
 .ai-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 6px; min-width: 0; }
+.ai-grid { align-items: start; }
+.ai-card td.num { white-space: nowrap; }
+.ai-card .status { white-space: normal; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .ai-card h3 { font-size: 15px; font-weight: 600; }
 .ai-where { margin-top: 0; }
 .ai-card code { font-size: 12px; }
