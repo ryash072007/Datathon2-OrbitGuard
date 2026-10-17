@@ -85,3 +85,8 @@ The dashboard brief panel reports the backend used and a grounded badge through 
 - Vallado, Crawford, Hujsak, Kelso, "Revisiting Spacetrack Report #3": https://celestrak.org/publications/AIAA/2006-6753/
 - Bombardelli group, along-track manoeuvre optimality: https://oa.upm.es/51461/
 - Johnson et al., "NASA's new breakup model of EVOLVE 4.0" (2001): https://doi.org/10.1016/S0273-1177(01)00423-9
+- Flask: https://flask.palletsprojects.com
+- pytest: https://pytest.org
+- llama.cpp: https://github.com/ggml-org/llama.cpp (s390x build notes: https://github.com/ggml-org/llama.cpp/blob/master/docs/build-s390x.md)
+- llama-cpp-python: https://github.com/abetlen/llama-cpp-python
+- IBM Granite 3.3 2B Instruct: https://huggingface.co/ibm-granite/granite-3.3-2b-instruct and its GGUF: https://huggingface.co/ibm-granite/granite-3.3-2b-instruct-GGUF
