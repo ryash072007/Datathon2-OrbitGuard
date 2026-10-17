@@ -33,19 +33,19 @@ navigation, weather, communications and crewed stations in low Earth orbit.
 | **Explain** | An operator brief from **IBM Granite 3.3 2B running on LinuxONE**. Two checks run before the operator sees it: a numeric guard (every number must match a computed fact) and a claim checker (direction, action, object names, whether the pair-only burn is safe, no "guaranteed safe"). Either one failing swaps in a template brief | Generative AI that narrates and never decides. We also tested IBM Granite Guardian as a third check; it missed every subtle error, so it ships switched off (see below) |
 | **Ask** (Live catalogue) | The operator types a question such as "what if I burn one orbit later?" Granite picks from read-only tools (look up a screened burn, compare with the pair-only policy, debris consequence, audit trail), and the answer goes through both guards | Agentic Granite with JSON-grammar tool calls. The tools only read results the physics already computed |
 | **Account** | Operator accept / defer / reject, plus every forecast, screen, brief and question, appended to a hash-chained audit log (SHA-256, which OpenSSL runs on the CPACF crypto instructions on IBM Z) | |
-| **Scale** | The P(high) scorers on the **Telum on-chip AI accelerator (NNPA)**: a Keras MLP through the IBM zDNN TensorFlow plugin (2.67x faster than CPU at 1M rows) and Snap ML tree inference through zDNN | TensorFlow + IBM zDNN plugin, IBM Snap ML |
+| **Scale** | The P(high) scorers on the **Telum on-chip AI accelerator (NNPA)**: a Keras MLP through the IBM zDNN TensorFlow plugin (**3.4x** faster than CPU at 1M rows on the z17 VM). Snap ML's zDNN tree path was tested too: identical predictions, but slower than its CPU path on this VM, so the live second opinion uses CPU | TensorFlow + IBM zDNN plugin, IBM Snap ML |
 
 ## Where the AI earns its place, and where it doesn't
 
 We tested every AI component against a simple, non-AI alternative on the same data, and we report the losses
-along with the wins. Numbers in this table are from the 12-core development PC unless marked. The LinuxONE
-pipeline regenerates all of them, and the console's Validation tab shows whichever run is on the server, labelled
-with its host.
+along with the wins. Every number in this table was re-measured on the LinuxONE z17 VM on 2026-10-17 by
+`scripts/run-linuxone-pipeline.sh` (the seeded runs gave the same values as the development PC). The console's
+Validation tab reads the same artefacts and labels them with their host.
 
 | Question | Answer | Evidence |
 | --- | --- | --- |
 | Can ML forecast the final ESA risk better than "copy the latest message"? | **No, not significantly.** The decision layer's ESA loss is 0.680 vs 0.694, but the paired-bootstrap 95% CI of the difference is [−0.071, +0.040]. We keep the baseline as the default forecast | `decision-eval` → `artifacts/ml/decision_evidence.json` |
-| Can ML rank dangerous encounters better? | **Yes, a little.** Triage average precision 0.7005 vs 0.6651, CI [+0.004, +0.064] (LinuxONE). Snap ML 0.705, CI vs naive [−0.011, +0.088], not significant on its own | `evaluate-triage`, `zai-eval` |
+| Can ML rank dangerous encounters better? | **Yes, a little.** Triage average precision 0.7005 vs 0.6651, CI [+0.004, +0.064]. Snap ML 0.705, CI vs naive [−0.011, +0.088], not significant on its own | `evaluate-triage`, `zai-eval` |
 | Does that save an operator work? | **Not at an equal alert budget.** At the naive rule's 178 alerts, triage catches 110 high-risk events vs 115 (difference CI [−14, +4]). Run in safety-first mode, ML catches a few more events, costing about 9 extra reviews per extra catch | `workload-eval` → `artifacts/ml/workload_evidence.json` |
 | Can learning find cheaper safe burns? | **Yes.** On the 50 frozen scenarios, Bayesian optimisation needs a median **12.5% less Δv** than the grid (ratio 0.875, CI [0.826, 0.889]). It wins 30, ties 10 and loses 0, and every pick is physics-verified. Random search with the same 37 physics evaluations does worse than the grid (1.72x Δv). Abstentions match the grid, and no impossible scenario was "solved" | `optimise-burns` → `artifacts/optimise/evidence.json` |
 | Do the guards catch a wrong brief? | **Mostly.** Numeric guard: 78% of changed numbers (n=40). Claim checker: 100% of our synthetic non-numeric errors (n=40), but only **80% of errors Granite itself wrote** (n=10, a set the checker wasn't built against). Zero false alarms on 40 good, 10 held-out and 5 real Granite briefs. Granite Guardian (Q8_0) caught **0 of 40**, because a one-line error gets lost in a 2,000-character brief, so we left it off by default (`GUARDIAN_MODE=off`) | `guard-eval` → `artifacts/llm/guard_eval.json` |
@@ -60,7 +60,7 @@ None of it can override the physics or the operator.
 | --- | --- |
 | Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
 | Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite answering operator questions through read-only tools, under guards we measured |
-| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN, Snap ML), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/` |
+| LinuxONE and AI/ML | [Why IBM LinuxONE](#why-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/` |
 | Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 200 tests, including [enforced data boundaries](docs/DATA_BOUNDARIES.md) (only evaluation code can read labels; the physics gate imports nothing from the ML, Granite or the operator log). The console reads only artefacts and shows "missing" instead of a number it can't back |
 
 ## Architecture
@@ -76,7 +76,7 @@ flowchart LR
     OPT["Learned burn search<br/>GP feasibility model · physics re-check"]
     LLM["Granite 3.3 2B (llama.cpp, BE GGUF)<br/>brief + Ask agent (read-only tools)"]
     GRD["Numeric guard + claim checker"]
-    NN["Telum NNPA via zDNN<br/>Keras MLP · Snap ML trees"]
+    NN["Telum NNPA via zDNN<br/>Keras MLP (Snap ML second opinion)"]
     AUD[("Hash-chained audit log")]
     ART[("Frozen models + evidence<br/>SHA-256 fingerprints")]
   end
@@ -107,6 +107,17 @@ Every number below names the platform it was measured on. **Re-run `bash scripts
 the VM after deploying this merged version** and quote those outputs: the merge changed the screener and
 added the decision-layer evaluation path.
 
+**Measured on the LinuxONE z17 VM, merged build, 2026-10-17** (`scripts/run-linuxone-pipeline.sh`, all 23 steps OK in 36 min on 3 vCPUs):
+
+| Item | Result |
+| --- | --- |
+| Real time | Forecast with decision layer p50 **45 ms**, p95 **49 ms**; 37-candidate synthetic screen p95 **1.83 s**; 3 workers **2.76x** faster than 1 |
+| Live ISS screen (real CelesTrak catalogue) | **144 burns × 6,753 objects**: burn screen 46 s, end to end 77 s including SGP4 for the whole catalogue. ISS vs ENSHI XIDA SHANQUAN, miss 3.74 km, best burn −T 0.2 m/s three orbits ahead |
+| NNPA, Keras MLP (TensorFlow + IBM zDNN plugin 2.3.0) | 1.44x at 1k rows → **3.43x at 1M rows** (888k vs 259k rows/s); max CPU-vs-NNPA difference 0.0015 |
+| Snap ML 1.17.2 trees, zDNN vs CPU | Predictions identical (max difference 0.0); zDNN path 0.05x to 0.49x the speed of Snap ML's compressed CPU trees, which reach 8 to 14M rows/s. So the live service uses CPU for this model |
+| Forecasting, workload, learned burn search, Snap ML accuracy | Same values as the table above (seeded, deterministic) |
+| Granite 3.3 2B q8_0, big-endian | Brief for the ISS event generated on the box (several minutes on 3 vCPUs; cached afterwards) |
+
 **Measured on LinuxONE s390x** (pre-merge OrbitGuard pipeline, [docs/RESULTS.md](docs/RESULTS.md), [accuracy review](docs/ACCURACY_REVIEW.md)):
 
 | Claim | Evidence |
@@ -132,7 +143,7 @@ added the decision-layer evaluation path.
 | Item | Result |
 | --- | --- |
 | Decision layer (ESA test) | L 0.680 vs naive 0.694, but ΔL 95% CI [−0.071, +0.040], so **not significant**; precision 0.673 vs 0.646; 80% interval covers 88% |
-| Snap ML second opinion (CPU, x86 Linux container) | AP 0.705 vs naive 0.665, CI [−0.011, +0.088]; vs decision-layer P(high) +0.092, CI [+0.041, +0.143]; 54M rows/s at 100k rows on CPU. The zDNN path still needs its VM run |
+| Snap ML second opinion | AP 0.705 vs naive 0.665, CI [−0.011, +0.088]; vs decision-layer P(high) +0.092, CI [+0.041, +0.143] |
 | Alert workload, equal budget (178 alerts) | Naive 115 caught; triage 110 (CI of difference [−14, +4]); decision P(high) 103 ([−22, −2]) |
 | Learned burn search, 50 scenarios, 37 evaluations | Median Δv 0.875x the grid, CI [0.826, 0.889], 30 wins / 10 ties / 0 losses; uniform random 1.72x; finer grid 0.93x; abstentions identical |
 | Learned burn search, ISS live event | 0.18 m/s (warm-started) vs grid 0.20 m/s, same all-object rule; one event, so no statistics |
@@ -147,9 +158,11 @@ added the decision-layer evaluation path.
 - **Real-time compute on the box.** The forecast service, the parallel synthetic planner, the catalogue screener
   (process pool with an explicit little-endian `<f8` ephemeris memmap shared between workers) and the network
   sweep all run on the VM's cores.
-- **On-chip AI.** The Telum NNPA accelerates the Keras P(high) scorer through TensorFlow and the IBM zDNN plugin, 2.67x at scale.
-  **IBM Snap ML** scores its boosted trees through zDNN as well (`tree_format="zdnn_tensors"`, the same PMML trees as the CPU
-  path), so the live forecast's second opinion runs on the accelerator. `orbitguard zai-bench` writes the CPU-vs-NNPA table.
+- **On-chip AI.** The Telum NNPA accelerates the Keras P(high) scorer through TensorFlow and the IBM zDNN plugin: 3.43x at
+  1M rows on the z17 VM, with TensorFlow's log showing the fused zDNN MatMul kernels in use. We also ran **IBM Snap ML**'s
+  boosted trees through zDNN (`tree_format="zdnn_tensors"`, the same PMML trees as the CPU path). Predictions were
+  identical but slower than Snap ML's compressed CPU trees here, so the second opinion picks the faster measured path
+  (`orbitguard zai-bench` writes the table, and the scorer reads it).
 - **IBM's own models, on the box.** Granite 3.3 2B writes the brief and drives the Ask agent in llama.cpp on a big-endian
   GGUF, so nothing leaves the machine. Granite Guardian converts and runs the same way, and we measured it rather than assumed it helps.
 - **On-box GenAI and data residency.** Granite runs locally via llama.cpp on a big-endian GGUF converted for s390x
