@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satellite collision avoidance: decision support</title>
+<style>
+ body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:0;background:#f3f4f6;color:#111827}
+ header{background:#0f172a;color:#fff;padding:12px 20px}
+ header h1{margin:0;font-size:20px} header p{margin:2px 0 0;font-size:13px;color:#cbd5e1}
+ main{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px;padding:14px;max-width:1500px;margin:auto}
+ section{background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+ section.wide{grid-column:1/-1}
+ h2{font-size:15px;margin:0 0 8px} table{border-collapse:collapse;width:100%;font-size:13px}
+ th,td{padding:3px 6px;border-bottom:1px solid #e5e7eb;text-align:left} th{background:#f9fafb}
+ tr.ok td{background:#ecfdf5} tr.warn td:nth-child(6){color:#b45309;font-weight:600}
+ .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;color:#fff;background:#6b7280}
+ .good{background:#16a34a}.bad{background:#dc2626}.act{background:#dc2626}.wait{background:#d97706}.monitor{background:#2563eb}
+ .muted{color:#6b7280;font-size:13px} button{padding:5px 12px;border:0;border-radius:5px;background:#2563eb;color:#fff;cursor:pointer}
+ button:disabled{background:#9ca3af} pre.brief{white-space:pre-wrap;font-family:inherit;font-size:14px;margin:0}
+ footer{padding:10px 20px;font-size:12px;color:#374151;text-align:center}
+ #busy{display:none;background:#fef3c7;padding:6px 20px;font-size:13px}
+ .tag{font-size:11px;padding:1px 5px;border-radius:4px;background:#e5e7eb;margin-left:3px}
+</style>
+</head>
+<body>
+<header>
+ <h1>Satellite collision avoidance: decision support</h1>
+ <p>Ranks risky close approaches, screens burns in parallel, explains the consequence. A human operator decides.</p>
+</header>
+<div id="busy">computing&hellip; <span id="busy-msg"></span></div>
+<main>
+
+<section id="picker">
+ <h2>1. Event</h2>
+ <form method="get" action="/">
+  <select name="norad" onchange="this.form.submit()">
+   {% for e in events %}<option value="{{ e.norad }}" {% if e.norad == norad %}selected{% endif %}>{{ e.label }}</option>{% endfor %}
+  </select>
+ </form>
+ {% if facts %}
+  <p><b>{{ facts.event.primary.name }}</b> ({{ facts.event.primary.norad }}, {{ facts.event.primary.type }}) vs
+  <b>{{ facts.event.threat.name }}</b> ({{ facts.event.threat.norad }}, {{ facts.event.threat.type }})<br>
+  TCA {{ facts.event.tca_utc }}; miss {{ '%.2f'|format(facts.event.miss_km) }} km</p>
+  <p class="muted">Analysed {{ facts.generated_utc }}.</p>
+ {% else %}
+  <p class="muted">No analysis cached for NORAD {{ norad }} yet.</p>
+ {% endif %}
+ <button class="run" data-url="/api/event/{{ norad }}">{{ 'Re-run analysis' if facts else 'Run analysis' }}</button>
+ <p class="muted">Takes about half a minute on 12 cores.</p>
+</section>
+
+<section id="risk">
+ <h2>2. Risk and decision</h2>
+ {% if facts %}
+  <p>Live collision probability (public TLEs, assumed error): <b>{{ '%.1e'|format(facts.risk.live_pc) }}</b></p>
+  {% if decision and decision.action %}
+   <p>Decision layer on a <span class="tag">historical CDM example</span> (ESA event {{ decision.cdm_event_id }};
+   live TLE events have no CDMs):</p>
+   <p><span class="badge {{ decision.action|lower }}">{{ decision.action }}</span>
+   predicted log10 Pc {{ '%.2f'|format(decision.predicted_risk_log10_pc) }}, P(high) {{ '%.2f'|format(decision.p_high) }}</p>
+   <ul>{% for r in decision.reasons %}<li class="muted">{{ r }}</li>{% endfor %}</ul>
+  {% else %}<p class="muted">No historical decision example in this analysis.</p>{% endif %}
+ {% else %}<p class="muted">Run the analysis first.</p>{% endif %}
+</section>
+
+<section id="burns" class="wide">
+ <h2>3. Burn options (top 10)</h2>
+ {% if burns %}
+ <p class="muted">Baseline miss {{ '%.2f'|format(facts.burns.baseline_miss_km) }} km; target {{ facts.burns.target_km }} km;
+ {{ facts.burns.n_feasible }} of {{ facts.burns.n_screened }} burns feasible; {{ facts.burns.n_objects_screened }} objects screened.
+ Green = meets target.</p>
+ <table><tr><th>#</th><th>Burn</th><th>Direction</th><th>dv (m/s)</th><th>Miss (km)</th><th>New conjunctions</th><th>Flags</th></tr>
+ {% for b in burns %}
+  <tr class="{{ 'ok' if b.feasible else '' }} {{ 'warn' if b.new_conjunctions else '' }}">
+   <td>{{ loop.index }}</td><td>{{ b.burn_id }}</td><td>{{ b.direction }}</td><td>{{ b.dv_mps }}</td>
+   <td>{{ '%.1f'|format(b.miss_km_threat) }}</td><td>{{ b.new_conjunctions }}</td>
+   <td>{% if b.along_track %}<span class="tag">along-track</span>{% endif %}
+       {% if b.new_conjunctions %}<span class="tag" style="background:#fde68a">creates new conjunction</span>{% endif %}</td></tr>
+ {% endfor %}</table>
+ {% else %}<p class="muted">Run the analysis first.</p>{% endif %}
+</section>
+
+<section id="consequence">
+ <h2>4. Consequence if they collide</h2>
+ {% if facts and facts.consequence %}{% set c = facts.consequence %}
+  <table>
+   <tr><td>Breakup</td><td>{{ 'catastrophic' if c.catastrophic else 'non-catastrophic' }}</td></tr>
+   <tr><td>Fragments (10 cm or more)</td><td>{{ '{:,.0f}'.format(c.fragments_true) }}</td></tr>
+   <tr><td>Satellites at risk</td><td>{{ '{:,}'.format(c.n_sats_ge1_encounter) }} of {{ '{:,}'.format(c.n_sats_considered) }}</td></tr>
+   <tr><td>Expected encounters</td><td>{{ '%.1f'|format(c.total_expected_encounters) }}</td></tr>
+   <tr><td>Pc</td><td>{{ '%.1e'|format(c.pc) }}</td></tr>
+   <tr><td>Expected harm</td><td>{{ '%.1e'|format(c.expected_harm) }}</td></tr>
+  </table>
+  <p class="muted">Affected satellites by constellation (expected passes within {{ c.assumptions.encounter_radius_km }} km, {{ c.assumptions.horizon_days }} d):</p>
+  {{ bars|safe }}
+ {% else %}<p class="muted">Run the analysis first.</p>{% endif %}
+</section>
+
+<section id="ranking">
+ <h2>5. Probability vs harm ranking</h2>
+ {% if n_survey %}<p class="muted">Survey of {{ n_survey }} events. Red = ranks much higher by harm than by Pc; green = lower.</p>{% endif %}
+ {{ slope|safe }}
+ <button class="run" data-url="/api/run/survey">Run survey (20 events)</button>
+</section>
+
+<section id="network">
+ <h2>6. Super-spreaders</h2>
+ {% if net %}
+  <p class="muted">{{ net.summary.n_objects }} objects, {{ net.summary.n_edges }} close-approach pairs within {{ net.params.r_km }} km over
+  {{ net.params.hours }} h; {{ net.summary.n_components }} components (largest {{ net.summary.largest_component }}).
+  Sweep {{ '%.1f'|format(net.timings.sweep_wall_s) }} s on {{ net.timings.workers|int }} workers.</p>
+  <table><tr><th>#</th><th>Name</th><th>Type</th><th>Degree</th><th>Score</th></tr>
+  {% for n in net_top %}<tr><td>{{ n.rank }}</td><td>{{ n.name }}</td><td>{{ n.type }}</td><td>{{ n.degree }}</td><td>{{ '%.3f'|format(n.score) }}</td></tr>{% endfor %}</table>
+  {{ net_svg|safe }}
+ {% else %}<p class="muted">No network computed yet.</p>{% endif %}
+ <button class="run" data-url="/api/run/network">{{ 'Re-run network sweep' if net else 'Run network sweep' }}</button>
+</section>
+
+<section id="brief" class="wide">
+ <h2>7. Operator brief
+  {% if brief %}<span class="badge">{{ brief.backend_used }}</span>
+  <span class="badge {{ 'good' if brief.grounded else 'bad' }}">{{ 'grounded' if brief.grounded else 'NOT grounded' }}</span>{% endif %}</h2>
+ {% if brief %}
+  <pre class="brief">{{ brief.text }}</pre>
+  {% if brief.issues %}<p class="muted">Guard notes: {{ brief.issues|join('; ') }}</p>{% endif %}
+ {% else %}<p class="muted">{{ 'Run the analysis first.' if not facts else 'Brief not generated yet.' }}</p>{% endif %}
+ {% if facts %}<button id="regen">Generate brief ({{ llm_backend }})</button>{% endif %}
+</section>
+
+</main>
+<footer>
+ Platform: <b>{{ platform.machine }}</b>, byte order <b>{{ platform.byteorder }}</b>, {{ platform.cpu_count }} CPUs,
+ {{ platform.system }}, Python {{ platform.python }}. Decision support only; masses and orbit errors are assumptions.
+</footer>
+
+<script>
+let wasRunning = false;
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    const busy = document.getElementById('busy');
+    const running = Object.values(s.jobs).filter(j => j.state === 'running');
+    busy.style.display = running.length ? 'block' : 'none';
+    document.getElementById('busy-msg').textContent = running.map(j => j.label + ' (' + j.elapsed_s + ' s)').join(', ');
+    document.querySelectorAll('button.run').forEach(b => b.disabled = running.length > 0);
+    const failed = Object.values(s.jobs).filter(j => j.state === 'error');
+    if (failed.length) { busy.style.display = 'block'; document.getElementById('busy-msg').textContent = 'FAILED: ' + failed[0].error; }
+    if (wasRunning && !running.length && !failed.length) { location.reload(); return; }
+    wasRunning = running.length > 0;
+  } catch (e) { /* server restarting: try again */ }
+  setTimeout(poll, 2000);
+}
+document.querySelectorAll('button.run').forEach(b => b.addEventListener('click', async () => {
+  await fetch(b.dataset.url, {method: 'POST'});
+  wasRunning = true; poll();
+}));
+const regen = document.getElementById('regen');
+if (regen) regen.addEventListener('click', async () => {
+  regen.disabled = true; regen.textContent = 'computing...';
+  await fetch('/api/brief/{{ norad }}'); location.reload();
+});
+poll();
+</script>
+</body>
+</html>

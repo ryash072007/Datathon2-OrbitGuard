@@ -50,6 +50,17 @@ python -m src.consequence.run --survey 20 --seed 0       # Pc ranking vs expecte
 
 Masses are rough assumptions (`src/consequence/objects.py`); outputs go to `data/out/`.
 
+## Phase 5: super-spreader network, grounded brief, dashboard
+
+```
+python -m src.network.run --hours 24                     # catalogue-wide close-approach graph, top super-spreaders
+python -m src.brief.run --primary 25544 --cdm-event 8    # facts -> brief; LLM_BACKEND=template|llamacpp|openai
+python -m src.app.run                                    # Flask dashboard on 0.0.0.0:$PORT (default 8080)
+```
+
+LLM backends: `LLM_BACKEND=llamacpp` with `LLM_MODEL_PATH` (GGUF), or `openai` with `LLM_BASE_URL`, `LLM_MODEL`,
+optional `LLM_API_KEY`. Any number in LLM output that is not in the facts triggers a fall back to the template.
+
 ## Credits
 
 - ESA Collision Avoidance Challenge dataset: https://zenodo.org/records/4463683 and https://kelvins.esa.int/collision-avoidance-challenge/
