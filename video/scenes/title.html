@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="scene.css">
+<style>
+  .wordmark { position: absolute; left: 1060px; top: 380px; }
+  .wordmark h1 { margin: 0; font-size: 132px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; }
+  .wordmark h1 span { display: inline-block; opacity: 0; transform: translateY(40px); transition: opacity .7s ease, transform .9s cubic-bezier(.2,.8,.2,1); }
+  .wordmark h1.in span { opacity: 1; transform: none; }
+  .tag { margin-top: 34px; font-size: 40px; font-weight: 300; color: var(--ink-2); max-width: 760px; line-height: 1.3; }
+  .tag b { font-weight: 500; color: var(--ink); }
+  .meta { position: absolute; left: 1064px; bottom: 120px; font-size: 22px; color: var(--muted); display: flex; gap: 28px; }
+  .meta span + span::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); margin: 0 22px 5px 0; }
+  .rule { width: 0; height: 2px; background: var(--a); margin-top: 30px; transition: width 1.2s cubic-bezier(.2,.8,.2,1); }
+  .rule.in { width: 180px; }
+</style></head>
+<body>
+<canvas id="earth" width="1920" height="1080"></canvas>
+<div class="wordmark"><h1 id="word"></h1><div class="rule r" id="rule"></div><p class="tag r" id="tag">Avoid one collision, <b>without causing another.</b></p></div>
+<div class="meta r" id="meta"><span>IBM Z Datathon 2026</span><span>Team Datathon2</span><span>Running on IBM LinuxONE</span></div>
+<script src="../out/lib.js"></script>
+<script>
+  const {earth, COLORS, cues} = OG;
+  const r = Math.PI / 180;
+  const scene = earth(document.getElementById('earth'), {cx: 560, cy: 540, radius: 330, rotation: 40, spin: 6, tilt: -22, orbits: [
+    {inc: 98 * r, raan: 30 * r, alt: 0.12, color: 'rgba(57,135,229,0.85)', width: 2, sats: [{phase: 0.6, color: COLORS.a, size: 7}], speed: 0.35},
+    {inc: 74 * r, raan: 110 * r, alt: 0.1, color: 'rgba(226,103,47,0.7)', width: 1.6, sats: [{phase: 2.2, color: COLORS.b, size: 6}], speed: 0.3},
+    {inc: 53 * r, raan: 200 * r, alt: 0.16, color: 'rgba(34,168,122,0.7)', width: 1.6, sats: [{phase: 4.1, color: COLORS.c, size: 6}], speed: 0.27},
+    {inc: 86 * r, raan: 250 * r, alt: 0.14, color: 'rgba(200,210,225,0.25)', width: 1.2, sats: [{phase: 1, color: '#c8d2e1', size: 4}], speed: 0.28},
+    {inc: 28 * r, raan: 300 * r, alt: 0.2, color: 'rgba(200,210,225,0.2)', width: 1.2, sats: [{phase: 3, color: '#c8d2e1', size: 4}], speed: 0.24},
+  ]});
+  const word = document.getElementById('word');
+  word.innerHTML = 'OrbitGuard'.split('').map((c, i) => `<span style="transition-delay:${i * 55}ms">${c}</span>`).join('');
+  window.start = () => {
+    setTimeout(() => word.classList.add('in'), 300);
+    setTimeout(() => document.getElementById('rule').classList.add('in'), 1100);
+  };
+  cues({
+    1: () => document.getElementById('tag').classList.add('in'),
+    2: () => document.getElementById('meta').classList.add('in'),
+  });
+</script>
+</body></html>

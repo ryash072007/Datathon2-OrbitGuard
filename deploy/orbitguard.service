@@ -1,0 +1,24 @@
+[Unit]
+Description=OrbitGuard decision-support console
+After=network.target
+
+[Service]
+Type=simple
+User=linux1
+WorkingDirectory=/home/linux1/orbitguard
+Environment=ORBITGUARD_ROOT=/home/linux1/orbitguard
+Environment=ORBITGUARD_WORKERS=2
+Environment=OMP_NUM_THREADS=1
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=MKL_NUM_THREADS=1
+ExecStart=/home/linux1/orbitguard/.venv/bin/python -m gunicorn --workers 1 --threads 4 --timeout 120 --bind 127.0.0.1:8000 orbitguard.wsgi:app
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/linux1/orbitguard/artifacts
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="scene.css">
+<style>
+  .copy { position: absolute; left: 1020px; top: 200px; width: 800px; }
+  .copy h1 { font-size: 110px; font-weight: 500; margin: 0; letter-spacing: -0.02em; }
+  .sub { font-size: 32px; color: var(--ink-2); margin: 18px 0 54px; font-weight: 300; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .stat { padding: 24px 26px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.035); }
+  .stat b { display: block; font-size: 48px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 21px; color: var(--ink-2); }
+  .tagline { position: absolute; left: 1020px; bottom: 140px; font-size: 40px; font-weight: 500; }
+  .tagline em { font-style: normal; color: var(--a); }
+  .team { position: absolute; left: 1020px; bottom: 90px; font-size: 22px; color: var(--muted); }
+</style></head>
+<body>
+<canvas id="earth" width="1920" height="1080"></canvas>
+<div class="copy">
+  <h1 class="r" id="h">OrbitGuard</h1>
+  <p class="sub r" id="sub">Real data · independent checks · running on IBM LinuxONE</p>
+  <div class="stats">
+    <div class="stat r" id="s1"><b>0.694</b><span>ESA's published baseline score, reproduced</span></div>
+    <div class="stat r" id="s2"><b>3 / 3</b><span>NASA reference cases matched</span></div>
+    <div class="stat r" id="s3"><b>20 → 0</b><span>new hazards created, pair-only vs OrbitGuard</span></div>
+    <div class="stat r" id="s4"><b>1.7 s</b><span>to screen 37 burns on LinuxONE (p95)</span></div>
+  </div>
+</div>
+<div class="tagline r" id="tag">One decision that protects <em>every nearby orbit.</em></div>
+<div class="team r" id="team">Team Datathon2 · IBM Z Datathon 2026</div>
+<script src="../out/lib.js"></script>
+<script>
+  const {earth, COLORS, cues} = OG;
+  const r = Math.PI / 180;
+  earth(document.getElementById('earth'), {cx: 520, cy: 540, radius: 320, rotation: 160, spin: 6, tilt: -20, swarm: 160, orbits: [
+    {inc: 98 * r, raan: 30 * r, alt: 0.12, color: 'rgba(57,135,229,0.85)', width: 2, sats: [{phase: 0.6, color: COLORS.a, size: 7}], speed: 0.35},
+    {inc: 74 * r, raan: 110 * r, alt: 0.1, color: 'rgba(226,103,47,0.55)', width: 1.5, sats: [{phase: 2.2, color: COLORS.b, size: 6}], speed: 0.3},
+    {inc: 53 * r, raan: 200 * r, alt: 0.16, color: 'rgba(34,168,122,0.55)', width: 1.5, sats: [{phase: 4.1, color: COLORS.c, size: 6}], speed: 0.27},
+  ]});
+  const $ = id => document.getElementById(id);
+  window.start = () => {};
+  cues({
+    0: () => {$('h').classList.add('in'); setTimeout(() => $('sub').classList.add('in'), 400); ['s1', 's2', 's3', 's4'].forEach((id, i) => setTimeout(() => $(id).classList.add('in'), 900 + i * 350));},
+    1: () => {$('tag').classList.add('in'); setTimeout(() => $('team').classList.add('in'), 600);},
+  });
+</script>
+</body></html>
