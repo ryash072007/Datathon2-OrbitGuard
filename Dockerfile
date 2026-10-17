@@ -38,6 +38,9 @@ RUN set -e; \
     python -c "from sgp4.api import accelerated; assert accelerated, 'sgp4 C extension not built'"; \
     pip install --no-cache-dir --no-deps --no-build-isolation -e .
 
+# Optional IBM Snap ML (second-opinion trees); the build must not fail if no wheel exists for this platform.
+RUN pip install --no-cache-dir 'snapml>=1.16.2' || echo "snapml unavailable, zai-* commands will be skipped"
+
 COPY --from=console /ui/dist /app/frontend/dist
 COPY scripts/ /app/scripts/
 RUN mkdir -p /app/artifacts /app/models \

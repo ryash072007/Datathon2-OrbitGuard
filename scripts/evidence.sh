@@ -57,6 +57,30 @@ if [ -n "$f" ]; then cp "$f" "$OUT/"; else echo "none found: artifacts/nnpa/nnpa
 for f in artifacts/pipeline/status.log artifacts/ml/evidence.json artifacts/ml/decision_evidence.json artifacts/physics/validation.json; do
   [ -f "$f" ] && cp "$f" "$OUT/$(echo "$f" | tr '/' '_')"
 done
+# IBM Z AI stack artefacts (workload, Snap ML, burn optimiser, Guardian eval); each is optional.
+for f in artifacts/ml/workload_evidence.json artifacts/zai/snapml_evidence.json artifacts/optimise/evidence.json artifacts/llm/guard_eval.json; do
+  if [ -f "$f" ]; then cp "$f" "$OUT/$(echo "$f" | tr '/' '_')"; else echo "none found: $f" >>"$OUT/missing.txt"; fi
+done
+f="$(ls -t artifacts/zai/snapml_bench_*.json 2>/dev/null | head -n 1)"
+if [ -n "$f" ]; then
+  cp "$f" "$OUT/"
+  "$PY" -c "
+import json,sys
+d=json.load(open(sys.argv[1]))
+def find(o,p=''):
+    if isinstance(o,dict):
+        for k,v in o.items():
+            if isinstance(v,(int,float)) and 'speedup' in k.lower(): print('  snapml zdnn',p+k,'=',v); return True
+            if find(v,p+k+'.'): return True
+    elif isinstance(o,list):
+        for i,v in enumerate(o):
+            if find(v,p+str(i)+'.'): return True
+    return False
+find(d) or print('  snapml bench: no speedup field in',sys.argv[1])
+" "$f" >"$OUT/snapml_speedup.txt" 2>&1 || true
+else
+  echo "none found: artifacts/zai/snapml_bench_*.json (run orbitguard zai-bench)" >>"$OUT/missing.txt"
+fi
 "$PY" -m orbitguard audit-verify >"$OUT/audit_verify.txt" 2>&1 || true
 
 echo "Evidence saved to $OUT"
@@ -64,6 +88,7 @@ echo "  arch:    $(cat "$OUT/machine_byteorder.txt" 2>/dev/null)"
 echo "  cores:   $(cat "$OUT/nproc.txt" 2>/dev/null)"
 echo "  nnpa:    $(grep -qi "^nnpa" "$OUT/cpuinfo_features.txt" && echo yes || echo no)"
 echo "  SE:      $(cut -d: -f1 "$OUT/secure_execution.txt")"
+[ -s "$OUT/snapml_speedup.txt" ] && head -n 1 "$OUT/snapml_speedup.txt"
 echo "  files:   $(ls "$OUT" | tr '\n' ' ')"
 [ -f "$OUT/missing.txt" ] && cat "$OUT/missing.txt"
 exit 0

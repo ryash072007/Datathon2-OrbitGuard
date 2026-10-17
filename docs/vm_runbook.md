@@ -42,6 +42,35 @@ keeps the demo working without the LLM. Keep SSH keys (`*.pem`) outside the repo
 | Live catalogue: recommendation, burn table, consequence, Granite brief (grounded badge) | Live catalogue |
 | Platform section (NNPA table, speed-up), decision evidence, audit chain intact | Validation |
 
+## IBM Z AI stack
+
+Run from `~/orbitguard` with the venv. Every step here is optional; the core pipeline does not depend on them.
+
+1. **Snap ML and zDNN.**
+   ```
+   .venv/bin/pip install 'snapml>=1.16.2'
+   ldconfig -p | grep -i zdnn || ls /usr/lib*/libzdnn*     # zDNN library must be present for Telum offload
+   .venv/bin/python -m orbitguard zai-fit
+   .venv/bin/python -m orbitguard zai-eval
+   .venv/bin/python -m orbitguard zai-bench               # CPU vs zDNN tree inference
+   ```
+   If the zDNN library is missing, try `sudo apt install libzdnn0` (package name unverified). Snap ML then runs on CPU only.
+2. **Granite Guardian.** Convert to a big-endian GGUF (about 8 minutes, needs a work dir with space), then evaluate:
+   ```
+   MODEL=guardian bash scripts/convert_granite_bigendian.sh
+   export GUARDIAN_MODEL_PATH=$PWD/artifacts/llm/granite-guardian-3.2-3b-a800m-q8_0-be.gguf
+   .venv/bin/python -m orbitguard guard-eval --n 40 --seed 0
+   ```
+3. **Ask OrbitGuard.** `.venv/bin/python -m orbitguard ask --norad 25544 "why is this an Act?"`
+4. **Burn optimiser.** `.venv/bin/python -m orbitguard optimise-burns synthetic --count 50 --budget 37 --seed 0`
+5. **Workload evaluation.** `.venv/bin/python -m orbitguard workload-eval`
+6. **Everything in one go.** `bash scripts/run-linuxone-pipeline.sh` runs the required steps, then the optional
+   Snap ML stages (if `snapml` imports) and `guard-eval` (if `GUARDIAN_MODEL_PATH` is set). Skips and failures are in `artifacts/pipeline/status.log`.
+7. **Evidence.** `bash scripts/evidence.sh`, then commit `docs/evidence`.
+
+Extra screenshots: `lscpu`, the `nnpa` line from `/proc/cpuinfo`, the `zai-bench` output, the `guard-eval` output,
+`cpacf_crypto.txt` from the evidence folder, `systemctl status orbitguard` and `docker ps`.
+
 ## What worked on the VM before the merge (z17, 3 vCPU, 8 GB; measured 17 Oct)
 
 These ran in the official Jupyter ML image (the host Python lacks TF/torch/llama_cpp). Shorthand:
