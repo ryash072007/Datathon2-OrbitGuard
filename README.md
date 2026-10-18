@@ -6,7 +6,7 @@
 **Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond) · **Runs on IBM LinuxONE (s390x, big-endian)**
 
 - Live console: https://148.100.76.224
-- Demo video: https://drive.google.com/file/d/1p-Yoz6Kvqe6NaHZcIzj3-w24xxdOIE5I/view?usp=sharing
+- Demo video: https://youtu.be/ioC6FOkOA4Q
 - Team: Aryash Mullick, Raj Yash, Suraj Balaji Bangarusamy, Bhavya Puri, Dhruv Gupta
 
 Data and the language model stay on the box, and every recommendation and operator choice is logged to a
