@@ -1,9 +1,9 @@
-# [Datathon2_IBM Z Datathon 2026 Project]: OrbitGuard, cascade-aware collision avoidance on IBM LinuxONE
+# Datathon2 OrbitGuard - IBM Z Datathon 2026 Project: OrbitGuard, cascade-aware collision avoidance on IBM LinuxONE
 
 > **Avoiding one satellite should not put another in danger.** OrbitGuard tells an operator how likely a close
 > approach is, which burn avoids it without creating a new one, and what a collision would cost everyone else in orbit.
 
-**Event code: `SSF2026`** · **Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond) · **Runs on IBM LinuxONE (s390x, big-endian)**
+**Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond) · **Runs on IBM LinuxONE (s390x, big-endian)**
 
 - Live console: https://148.100.76.224
 - Demo video: https://drive.google.com/file/d/1p-Yoz6Kvqe6NaHZcIzj3-w24xxdOIE5I/view?usp=sharing
