@@ -6,8 +6,8 @@
 **Event code: `SSF2026`** · **Theme: Real-Time AI for Critical Decisions** (Detect, Decide, Respond) · **Runs on IBM LinuxONE (s390x, big-endian)**
 
 - Live console: https://148.100.76.224
-- Demo video: `[video link]`
-- Team: `[team member names]`
+- Demo video: https://drive.google.com/file/d/1p-Yoz6Kvqe6NaHZcIzj3-w24xxdOIE5I/view?usp=sharing
+- Team: Aryash Mullick, Raj Yash, Suraj Balaji Bangarusamy, Bhavya Puri, Dhruv Gupta
 
 Data and the language model stay on the box, and every recommendation and operator choice is logged to a
 tamper-evident chain, so it also covers *AI Secured*. This is decision support. A human operator makes every call,
@@ -15,33 +15,22 @@ and the tool never commands a spacecraft.
 
 ## Contents
 
-1. [Where to look, by judging criterion](#where-to-look-by-judging-criterion)
-2. [The problem, with data](#the-problem-with-data)
-3. [What it does](#what-it-does)
-4. [Live demo](#live-demo)
-5. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
-6. [Results](#results)
-7. [Architecture](#architecture)
-8. [Supporting documents](#supporting-documents)
-9. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
-10. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
-11. [Run it](#run-it)
-12. [Evaluation integrity](#evaluation-integrity)
-13. [Limitations](#limitations)
-14. [Porting notes](#porting-notes)
-15. [Repository map](#repository-map)
-16. [Further documentation](#further-documentation)
-17. [Credits and open-source resources](#credits-and-open-source-resources)
-18. [Built during the event](#built-during-the-event)
-
-## Where to look, by judging criterion
-
-| Criterion | Where it shows |
-| --- | --- |
-| Value and theme | [The problem, with data](#the-problem-with-data). The cascade result (20 secondary hazards vs 0) is in the Validation tab and `docs/RESULTS.md` |
-| Novelty | All-object Pc gating with abstention; a consequence-weighted ranking; AI that proposes burns which physics verifies; Granite answering operator questions through read-only tools, under guards we measured |
-| LinuxONE and AI/ML | [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone): Telum NNPA (TensorFlow + zDNN 3.4x; Snap ML zDNN measured), Granite on a big-endian build on the box, CPACF-backed hashing, hardened systemd and an s390x container. Captures are in `docs/vm_capture/` and `docs/evidence/`. Both prerequisite labs: [completed on the VM](#prerequisite-labs-completed-on-linuxone) |
-| Execution | `bash scripts/run-linuxone-pipeline.sh` regenerates every number. 200 tests, including [enforced data boundaries](docs/DATA_BOUNDARIES.md) (only evaluation code can read labels; the physics gate imports nothing from the ML, Granite or the operator log). The console reads only artefacts and shows "missing" instead of a number it can't back |
+1. [The problem, with data](#the-problem-with-data)
+2. [What it does](#what-it-does)
+3. [Live demo](#live-demo)
+4. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
+5. [Results](#results)
+6. [Architecture](#architecture)
+7. [Supporting documents](#supporting-documents)
+8. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
+9. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
+10. [Run it](#run-it)
+11. [Evaluation integrity](#evaluation-integrity)
+12. [Limitations](#limitations)
+13. [Porting notes](#porting-notes)
+14. [Repository map](#repository-map)
+15. [Further documentation](#further-documentation)
+16. [Credits and open-source resources](#credits-and-open-source-resources)
 
 ## The problem, with data
 
@@ -102,7 +91,7 @@ screenshots are in [docs/evidence/](docs/evidence/README.md) and [docs/labs/](do
 ## Results
 
 Every number below names the platform and build it was measured on. The code base combines two builds made during the
-event (see [Built during the event](#built-during-the-event)); tables marked "pre-merge" were measured on one of those
+event; tables marked "pre-merge" were measured on one of those
 builds before they were combined. `bash scripts/run-linuxone-pipeline.sh` regenerates the combined-build numbers.
 
 **Measured on the LinuxONE z17 VM, merged build, 2026-10-17** (`scripts/run-linuxone-pipeline.sh`, all 23 steps OK in 36 min on 3 vCPUs):
@@ -387,12 +376,3 @@ Console: React https://react.dev · TypeScript https://www.typescriptlang.org ·
 Recharts https://recharts.org · three.js https://threejs.org · d3-geo https://github.com/d3/d3-geo ·
 topojson-client https://github.com/topojson/topojson-client · world-atlas (Natural Earth) https://github.com/topojson/world-atlas ·
 Lucide https://lucide.dev · IBM Plex via Fontsource https://fontsource.org · Playwright (smoke tests) https://playwright.dev
-
-## Built during the event
-
-All code in this repository was written during the datathon window, 17-18 October 2026 (event code `SSF2026`); commit
-timestamps are the record. It combines two builds made by the team during the event, with both git histories preserved:
-a cascade-aware catalogue screener (real CelesTrak catalogue, consequence engine, super-spreader network, Granite on the box, audit chain,
-NNPA benchmark) and a strictly evaluated ESA forecasting and physics pipeline (NASA-validated Pc, synthetic planner with abstention, React
-console). The combined screener applies the validated all-object Pc rule to real SGP4 states, and the Act / Wait / Monitor decision layer
-runs beside the ESA forecast through the sealed-label evaluation path.
