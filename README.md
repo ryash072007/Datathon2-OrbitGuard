@@ -75,9 +75,8 @@ screenshots are in [docs/evidence/](docs/evidence/README.md) and [docs/labs/](do
   identical but slower than Snap ML's compressed CPU trees here, so the second opinion picks the faster measured path
   (`orbitguard zai-bench` writes the table, and the scorer reads it).
 - **IBM's own models, on the box.** Granite 3.3 2B writes the brief and drives the Ask agent in llama.cpp on a big-endian
-  GGUF, so nothing leaves the machine. Granite Guardian converts and runs the same way, and we measured it rather than assumed it helps.
-- **On-box GenAI and data residency.** Granite runs locally via llama.cpp on a big-endian GGUF converted for s390x
-  (see [Porting notes](#porting-notes)). No external AI API is called; only public TLE and SATCAT downloads come in.
+  GGUF converted for s390x (see [Porting notes](#porting-notes)). No external AI API is called; only public TLE and SATCAT
+  downloads come in. Granite Guardian converts and runs the same way, and we measured it rather than assumed it helps.
 - **Porting done properly.** The sgp4 C extension is built from source (the s390x pure-Python fallback was about 70x
   slower). The code uses explicit byte order, spawn-safe multiprocessing, and models retrained on the VM rather than copied.
 - **Security and integrity.** A hardened systemd unit (NoNewPrivileges, ProtectSystem=strict, writes only to
@@ -171,7 +170,7 @@ flowchart LR
   LLM --> GRD
   API --> ML & PH & OPT & CAT & CON & LLM & AUD
   ML & PH --> ART
-  UI[React console] -- SSH tunnel --> API
+  UI[React console] -- "HTTPS (TLS proxy)" --> API
   OP((Operator)) --> UI
 ```
 
@@ -255,14 +254,6 @@ Full runbook: [docs/vm_runbook.md](docs/vm_runbook.md).
 docker build -t orbitguard .                     # x86: --build-arg BASE=python:3.12-slim
 docker run -d -p 8080:8080 -v $PWD/artifacts:/app/artifacts orbitguard
 ```
-
-### Commands
-
-`orbitguard <command>`: `fetch-data`, `prepare-data`, `train`, `evaluate`, `audit-accuracy`, `train-triage`,
-`evaluate-triage`, `train-guard`, `evaluate-guard`, `decision-fit`, `decision-eval`, `validate-physics`,
-`benchmark-planner`, `benchmark-runtime`, `screen-live`, `consequence`, `validate-breakup`, `network`, `brief`,
-`nnpa-bench`, `nnpa-report`, `workload-eval`, `zai-fit`, `zai-eval`, `zai-bench`, `optimise-burns`, `guard-eval`,
-`ask`, `audit-verify`, `environment`, `serve`.
 
 ## Evaluation integrity
 
