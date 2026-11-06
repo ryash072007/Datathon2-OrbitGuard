@@ -51,21 +51,48 @@ awards with OrbitGuard at the **IBM Z Datathon 2026**, held on **17 October 2026
 
 ### Winner announcements
 
-| APAC region | NTU, Singapore |
-| --- | --- |
-| ![APAC winner announcement naming Team Datathon2 and OrbitGuard as first place](imgs/Team%20winner%20slide.jpeg) | ![NTU Singapore winner announcement naming Team Datathon2 and OrbitGuard as first place](imgs/team%20winner%20slide%202.jpeg) |
+#### APAC region - 1st Place
+
+[<img src="imgs/Team%20winner%20slide.jpeg" width="850" alt="APAC winner announcement naming Team Datathon2 and OrbitGuard as first place">](imgs/Team%20winner%20slide.jpeg)
+
+#### NTU, Singapore - 1st Place
+
+[<img src="imgs/team%20winner%20slide%202.jpeg" width="600" alt="NTU Singapore winner announcement naming Team Datathon2 and OrbitGuard as first place">](imgs/team%20winner%20slide%202.jpeg)
 
 ### Team certificates
 
-All 15 original certificate PDFs are linked below, with one certificate per teammate for each award.
+All 15 certificates are displayed below, grouped by award, with one large preview per table row.
+Click a preview to view the full-resolution image, or use its **Original PDF** link.
 
-| Team member | Global 1st Place | APAC 1st Place | NTU 1st Place |
-| --- | --- | --- | --- |
-| Aryash Mullick | [Global PDF](Certificates/Global/Aryash%20Mullick.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%284%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Aryash%20Mullick.pdf) |
-| Yash Raj | [Global PDF](Certificates/Global/Yash%20Raj.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%283%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Yash%20Raj.pdf) |
-| Suraj Balaji Bangarusamy | [Global PDF](Certificates/Global/Suraj%20Balaji%20Bangarusamy.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Suraj%20Balaji%20Bangarusamy.pdf) |
-| Bhavya Puri | [Global PDF](Certificates/Global/Bhavya%20Puri.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%281%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Bhavya%20Puri.pdf) |
-| Dhruv Gupta | [Global PDF](Certificates/Global/Dhruv%20Gupta%20%281%29.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%282%29%20%281%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Dhruv%20Gupta%20%281%29.pdf) |
+#### Global 1st Place
+
+| Certificate |
+| --- |
+| **Aryash Mullick**<br>[<img src="Certificates/previews/Global/aryash-mullick.png" width="800" alt="Aryash Mullick - IBM Z Datathon 2026 Global 1st Place certificate">](Certificates/previews/Global/aryash-mullick.png)<br>[Original PDF](Certificates/Global/Aryash%20Mullick.pdf) |
+| **Yash Raj**<br>[<img src="Certificates/previews/Global/yash-raj.png" width="800" alt="Yash Raj - IBM Z Datathon 2026 Global 1st Place certificate">](Certificates/previews/Global/yash-raj.png)<br>[Original PDF](Certificates/Global/Yash%20Raj.pdf) |
+| **Suraj Balaji Bangarusamy**<br>[<img src="Certificates/previews/Global/suraj-balaji-bangarusamy.png" width="800" alt="Suraj Balaji Bangarusamy - IBM Z Datathon 2026 Global 1st Place certificate">](Certificates/previews/Global/suraj-balaji-bangarusamy.png)<br>[Original PDF](Certificates/Global/Suraj%20Balaji%20Bangarusamy.pdf) |
+| **Bhavya Puri**<br>[<img src="Certificates/previews/Global/bhavya-puri.png" width="800" alt="Bhavya Puri - IBM Z Datathon 2026 Global 1st Place certificate">](Certificates/previews/Global/bhavya-puri.png)<br>[Original PDF](Certificates/Global/Bhavya%20Puri.pdf) |
+| **Dhruv Gupta**<br>[<img src="Certificates/previews/Global/dhruv-gupta.png" width="800" alt="Dhruv Gupta - IBM Z Datathon 2026 Global 1st Place certificate">](Certificates/previews/Global/dhruv-gupta.png)<br>[Original PDF](Certificates/Global/Dhruv%20Gupta%20%281%29.pdf) |
+
+#### APAC Region 1st Place
+
+| Certificate |
+| --- |
+| **Aryash Mullick**<br>[<img src="Certificates/previews/APAC/aryash-mullick.png" width="800" alt="Aryash Mullick - IBM Z Datathon 2026 APAC Region 1st Place certificate">](Certificates/previews/APAC/aryash-mullick.png)<br>[Original PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%284%29.pdf) |
+| **Yash Raj**<br>[<img src="Certificates/previews/APAC/yash-raj.png" width="800" alt="Yash Raj - IBM Z Datathon 2026 APAC Region 1st Place certificate">](Certificates/previews/APAC/yash-raj.png)<br>[Original PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%283%29.pdf) |
+| **Suraj Balaji Bangarusamy**<br>[<img src="Certificates/previews/APAC/suraj-balaji-bangarusamy.png" width="800" alt="Suraj Balaji Bangarusamy - IBM Z Datathon 2026 APAC Region 1st Place certificate">](Certificates/previews/APAC/suraj-balaji-bangarusamy.png)<br>[Original PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2.pdf) |
+| **Bhavya Puri**<br>[<img src="Certificates/previews/APAC/bhavya-puri.png" width="800" alt="Bhavya Puri - IBM Z Datathon 2026 APAC Region 1st Place certificate">](Certificates/previews/APAC/bhavya-puri.png)<br>[Original PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%281%29.pdf) |
+| **Dhruv Gupta**<br>[<img src="Certificates/previews/APAC/dhruv-gupta.png" width="800" alt="Dhruv Gupta - IBM Z Datathon 2026 APAC Region 1st Place certificate">](Certificates/previews/APAC/dhruv-gupta.png)<br>[Original PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%282%29%20%281%29.pdf) |
+
+#### NTU 1st Place
+
+| Certificate |
+| --- |
+| **Aryash Mullick**<br>[<img src="Certificates/previews/NTU/aryash-mullick.png" width="800" alt="Aryash Mullick - IBM Z Datathon 2026 NTU 1st Place certificate">](Certificates/previews/NTU/aryash-mullick.png)<br>[Original PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Aryash%20Mullick.pdf) |
+| **Yash Raj**<br>[<img src="Certificates/previews/NTU/yash-raj.png" width="800" alt="Yash Raj - IBM Z Datathon 2026 NTU 1st Place certificate">](Certificates/previews/NTU/yash-raj.png)<br>[Original PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Yash%20Raj.pdf) |
+| **Suraj Balaji Bangarusamy**<br>[<img src="Certificates/previews/NTU/suraj-balaji-bangarusamy.png" width="800" alt="Suraj Balaji Bangarusamy - IBM Z Datathon 2026 NTU 1st Place certificate">](Certificates/previews/NTU/suraj-balaji-bangarusamy.png)<br>[Original PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Suraj%20Balaji%20Bangarusamy.pdf) |
+| **Bhavya Puri**<br>[<img src="Certificates/previews/NTU/bhavya-puri.png" width="800" alt="Bhavya Puri - IBM Z Datathon 2026 NTU 1st Place certificate">](Certificates/previews/NTU/bhavya-puri.png)<br>[Original PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Bhavya%20Puri.pdf) |
+| **Dhruv Gupta**<br>[<img src="Certificates/previews/NTU/dhruv-gupta.png" width="800" alt="Dhruv Gupta - IBM Z Datathon 2026 NTU 1st Place certificate">](Certificates/previews/NTU/dhruv-gupta.png)<br>[Original PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Dhruv%20Gupta%20%281%29.pdf) |
 
 ## The problem, with data
 
@@ -385,7 +412,7 @@ frontend/                React console (Encounters, Manoeuvre planning, Live cat
 scripts/ deploy/ Dockerfile   LinuxONE bootstrap, evidence pipeline, sync/tunnel, systemd, container
 tests/                   pytest suite, including the enforced data-boundary tests
 docs/                    results, reviews, runbook, phase notes, evidence, labs, VM captures
-Certificates/            Global, APAC and NTU first-place certificates for all five teammates
+Certificates/            Global, APAC and NTU first-place PDFs, plus image previews for all five teammates
 imgs/                    project demo screenshots and winner announcement slides
 video/                   scripts that build the demo video
 ```
