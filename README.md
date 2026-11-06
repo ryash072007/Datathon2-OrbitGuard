@@ -1,4 +1,8 @@
-# Datathon2 OrbitGuard - IBM Z Datathon 2026 Project: OrbitGuard, cascade-aware collision avoidance on IBM LinuxONE
+# OrbitGuard - IBM Z Datathon 2026
+
+**Global 1st Place | APAC Region 1st Place | NTU 1st Place**
+
+Cascade-aware collision avoidance on IBM LinuxONE, built by Team Datathon2.
 
 > **Avoiding one satellite should not put another in danger.** OrbitGuard tells an operator how likely a close
 > approach is, which burn avoids it without creating a new one, and what a collision would cost everyone else in orbit.
@@ -7,7 +11,7 @@
 
 - Live console: https://148.100.76.224
 - Demo video: https://youtu.be/ioC6FOkOA4Q
-- Team: Aryash Mullick, Raj Yash, Suraj Balaji Bangarusamy, Bhavya Puri, Dhruv Gupta
+- Team: Aryash Mullick, Yash Raj, Suraj Balaji Bangarusamy, Bhavya Puri, Dhruv Gupta
 
 Data and the language model stay on the box, and every recommendation and operator choice is logged to a
 tamper-evident chain, so it also covers *AI Secured*. This is decision support. A human operator makes every call,
@@ -15,22 +19,53 @@ and the tool never commands a spacecraft.
 
 ## Contents
 
-1. [The problem, with data](#the-problem-with-data)
-2. [What it does](#what-it-does)
-3. [Live demo](#live-demo)
-4. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
-5. [Results](#results)
-6. [Architecture](#architecture)
-7. [Supporting documents](#supporting-documents)
-8. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
-9. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
-10. [Run it](#run-it)
-11. [Evaluation integrity](#evaluation-integrity)
-12. [Limitations](#limitations)
-13. [Porting notes](#porting-notes)
-14. [Repository map](#repository-map)
-15. [Further documentation](#further-documentation)
-16. [Credits and open-source resources](#credits-and-open-source-resources)
+1. [Awards and certificates](#awards-and-certificates)
+2. [The problem, with data](#the-problem-with-data)
+3. [What it does](#what-it-does)
+4. [Live demo](#live-demo)
+5. [Project gallery](#project-gallery)
+6. [How it uses IBM LinuxONE](#how-it-uses-ibm-linuxone)
+7. [Results](#results)
+8. [Architecture](#architecture)
+9. [Supporting documents](#supporting-documents)
+10. [Where AI is used, and where it deliberately is not](#where-ai-is-used-and-where-it-deliberately-is-not)
+11. [Prerequisite labs (completed on LinuxONE)](#prerequisite-labs-completed-on-linuxone)
+12. [Run it](#run-it)
+13. [Evaluation integrity](#evaluation-integrity)
+14. [Limitations](#limitations)
+15. [Porting notes](#porting-notes)
+16. [Repository map](#repository-map)
+17. [Further documentation](#further-documentation)
+18. [Credits and open-source resources](#credits-and-open-source-resources)
+
+## Awards and certificates
+
+Team **Datathon2**, representing **Nanyang Technological University (NTU), Singapore**, won three first-place
+awards with OrbitGuard at the **IBM Z Datathon 2026**, held on **17 October 2026**:
+
+| Level | Result | Certificates |
+| --- | --- | --- |
+| Global | **1st Place** | [Global certificates](Certificates/Global/) |
+| APAC region | **1st Place** | [APAC certificates](Certificates/APAC/) |
+| NTU, Singapore | **1st Place** | [NTU certificates](Certificates/NTU/) |
+
+### Winner announcements
+
+| APAC region | NTU, Singapore |
+| --- | --- |
+| ![APAC winner announcement naming Team Datathon2 and OrbitGuard as first place](imgs/Team%20winner%20slide.jpeg) | ![NTU Singapore winner announcement naming Team Datathon2 and OrbitGuard as first place](imgs/team%20winner%20slide%202.jpeg) |
+
+### Team certificates
+
+All 15 original certificate PDFs are linked below, with one certificate per teammate for each award.
+
+| Team member | Global 1st Place | APAC 1st Place | NTU 1st Place |
+| --- | --- | --- | --- |
+| Aryash Mullick | [Global PDF](Certificates/Global/Aryash%20Mullick.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%284%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Aryash%20Mullick.pdf) |
+| Yash Raj | [Global PDF](Certificates/Global/Yash%20Raj.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%283%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Yash%20Raj.pdf) |
+| Suraj Balaji Bangarusamy | [Global PDF](Certificates/Global/Suraj%20Balaji%20Bangarusamy.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Suraj%20Balaji%20Bangarusamy.pdf) |
+| Bhavya Puri | [Global PDF](Certificates/Global/Bhavya%20Puri.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%281%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Bhavya%20Puri.pdf) |
+| Dhruv Gupta | [Global PDF](Certificates/Global/Dhruv%20Gupta%20%281%29.pdf) | [APAC PDF](Certificates/APAC/IBM%20Datathon%202026%20Winner%20Certificate%20Datathon2%282%29%20%281%29.pdf) | [NTU PDF](Certificates/NTU/IBM%20Datathon%202026%20Winner%20Certificate%20Dhruv%20Gupta%20%281%29.pdf) |
 
 ## The problem, with data
 
@@ -62,7 +97,42 @@ navigation, weather, communications and crewed stations in low Earth orbit.
 The React console is served from the LinuxONE VM at https://148.100.76.224. Its tabs are Encounters, Manoeuvre planning,
 Live catalogue (with Ask), Validation and How it works. The Validation tab reads the evidence artefacts and shows
 "missing" where a number cannot be backed. Terminal captures from the VM are in [docs/vm_capture/](docs/vm_capture/), and
-screenshots are in [docs/evidence/](docs/evidence/README.md) and [docs/labs/](docs/labs/README.md). The demo video is linked at the top of this file.
+project visuals are in the [gallery below](#project-gallery). Supporting evidence and lab screenshots are in
+[docs/evidence/](docs/evidence/README.md) and [docs/labs/](docs/labs/README.md). The demo video is linked at the top of this file.
+
+## Project gallery
+
+Screenshots from the OrbitGuard project demo and collision simulation console. The manoeuvre-planning and
+optimisation diagrams are illustrative; measured benchmarks and their platforms are documented in [Results](#results).
+
+### Collision simulation console
+
+![OrbitGuard collision simulation console showing a debris cloud, exposed satellites and a playback timeline](imgs/OrbitGuard%20Collision%20Simulation%20Console.png)
+
+The collision simulation visualises debris and satellite exposure alongside the catalogue view. Globe object
+positions are illustrative.
+
+### Manoeuvre planning under uncertainty
+
+![Illustrative manoeuvre planner showing candidate routes, uncertainty levels and a decline decision](imgs/Screenshot%202026-11-07%20at%204.03.54%E2%80%AFAM.png)
+
+Candidate routes are checked at multiple uncertainty levels. The planner declines when no option meets the
+safety limits.
+
+### Learned burn search and the physics gate
+
+![Illustrative Bayesian optimisation curve and physics gate beside pair-only and all-object hazard comparisons](imgs/Screenshot%202026-11-07%20at%204.04.39%E2%80%AFAM.png)
+
+Bayesian optimisation proposes burn sizes, and every proposal is re-checked by physics. The hazard comparison
+shows 20 new hazards for pair-only avoidance and zero for all-object screening in the frozen scenario suite.
+
+### Live catalogue screening on LinuxONE
+
+![OrbitGuard ISS catalogue analysis showing 144 candidate burns, 6753 catalogue objects and a 77 second end-to-end run](imgs/Screenshot%202026-11-07%20at%204.05.17%E2%80%AFAM.png)
+
+The LinuxONE demo screens 144 candidate burns against 6,753 catalogue objects in 77 seconds end to end,
+including propagation and preparation. The globe layout is illustrative; the counters and timings come from
+the recorded run.
 
 ## How it uses IBM LinuxONE
 
@@ -315,6 +385,8 @@ frontend/                React console (Encounters, Manoeuvre planning, Live cat
 scripts/ deploy/ Dockerfile   LinuxONE bootstrap, evidence pipeline, sync/tunnel, systemd, container
 tests/                   pytest suite, including the enforced data-boundary tests
 docs/                    results, reviews, runbook, phase notes, evidence, labs, VM captures
+Certificates/            Global, APAC and NTU first-place certificates for all five teammates
+imgs/                    project demo screenshots and winner announcement slides
 video/                   scripts that build the demo video
 ```
 

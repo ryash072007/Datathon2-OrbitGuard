@@ -27,5 +27,6 @@ video/assembly/.cache/
 *.joblib
 *.zip
 *.pdf
+!Certificates/**/*.pdf
 id_rsa*
 id_ed25519*
