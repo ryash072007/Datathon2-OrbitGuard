@@ -13,6 +13,18 @@ Data and the language model stay on the box, and every recommendation and operat
 tamper-evident chain, so it also covers *AI Secured*. This is decision support. A human operator makes every call,
 and the tool never commands a spacecraft.
 
+## Datathon results
+
+We're proud to share our results from the **IBM Z Datathon 2026**:
+
+| Level | Result |
+| --- | --- |
+| Global | **1st Place** |
+| APAC region | **1st Place** |
+| NTU, Singapore | **1st Place** |
+
+[Read the results announcement on LinkedIn.](https://lnkd.in/p/gTQSM6Aq)
+
 ## Contents
 
 1. [The problem, with data](#the-problem-with-data)
