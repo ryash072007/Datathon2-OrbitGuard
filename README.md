@@ -19,7 +19,6 @@ We're proud to share our results from the **IBM Z Datathon 2026**:
 
 | Level | Result |
 | --- | --- |
-| Global | **1st Place** |
 | APAC region | **1st Place** |
 | NTU, Singapore | **1st Place** |
 
